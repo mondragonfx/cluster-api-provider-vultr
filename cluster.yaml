@@ -1,0 +1,123 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: capvultr-quickstart
+  namespace: default
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+      - 172.25.0.0/16
+    services:
+      cidrBlocks:
+      - 172.26.0.0/16
+  controlPlaneRef:
+    apiGroup: controlplane.cluster.x-k8s.io
+    kind: KubeadmControlPlane
+    name: capvultr-quickstart-control-plane
+  infrastructureRef:
+    apiGroup: infrastructure.cluster.x-k8s.io
+    kind: VultrCluster
+    name: capvultr-quickstart
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrCluster
+metadata:
+  name: capvultr-quickstart
+  namespace: default
+spec:
+  region: ewr
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+kind: KubeadmControlPlane
+metadata:
+  name: capvultr-quickstart-control-plane
+  namespace: default
+spec:
+  kubeadmConfigSpec:
+    initConfiguration:
+      nodeRegistration:
+        criSocket: unix:///var/run/containerd/containerd.sock
+    joinConfiguration:
+      nodeRegistration:
+        criSocket: unix:///var/run/containerd/containerd.sock
+  machineTemplate:
+    spec:
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: VultrMachineTemplate
+        name: capvultr-quickstart-control-plane
+  replicas: 1
+  version: v1.32.4
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrMachineTemplate
+metadata:
+  name: capvultr-quickstart-control-plane
+  namespace: default
+spec:
+  template:
+    spec:
+      planID: voc-c-2c-4gb-75s-amd
+      region: ewr
+      snapshot_id: ac60e74f-b256-485e-bb7d-71fc50a13826
+      sshKey:
+      - 4f052a43-8665-4fc6-ac8c-315ad8866cfc
+      vpc_id: 63692dfd-bea6-4e4e-8bb7-50de31887158
+---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDeployment
+metadata:
+  name: capvultr-quickstart-md-0
+  namespace: default
+spec:
+  clusterName: capvultr-quickstart
+  replicas: 2
+  selector:
+    matchLabels:
+      cluster.x-k8s.io/cluster-name: capvultr-quickstart
+      cluster.x-k8s.io/deployment-name: capvultr-quickstart-md-0
+  template:
+    metadata:
+      labels:
+        cluster.x-k8s.io/cluster-name: capvultr-quickstart
+        cluster.x-k8s.io/deployment-name: capvultr-quickstart-md-0
+    spec:
+      bootstrap:
+        configRef:
+          apiGroup: bootstrap.cluster.x-k8s.io
+          kind: KubeadmConfigTemplate
+          name: capvultr-quickstart-md-0
+      clusterName: capvultr-quickstart
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: VultrMachineTemplate
+        name: capvultr-quickstart-md-0
+      version: v1.32.4
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrMachineTemplate
+metadata:
+  name: capvultr-quickstart-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      planID: vc2-8c-32gb
+      region: ewr
+      snapshot_id: ac60e74f-b256-485e-bb7d-71fc50a13826
+      sshKey:
+      - 4f052a43-8665-4fc6-ac8c-315ad8866cfc
+      vpc_id: 63692dfd-bea6-4e4e-8bb7-50de31887158
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: capvultr-quickstart-md-0
+  namespace: default
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          criSocket: unix:///var/run/containerd/containerd.sock

@@ -1,8 +1,8 @@
 
-REGISTRY            ?= vultr
+REGISTRY            ?= sjc.vultrcr.com/dragoncity
 IMAGE_NAME          ?= cluster-api-provider-vultr
 CONTROLLER_IMAGE    ?= $(REGISTRY)/$(IMAGE_NAME):$(TAG)
-TAG                 ?= v0.2.1
+TAG                 ?= v1beta2-2
 ARCH 				?= amd64
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
@@ -199,7 +199,7 @@ ENVSUBST ?= $(LOCALBIN)/envsubst-$(ENVSUBST_VERSION)
 
 ## Tool Versions
 KUBECTL_VERSION := v1.28.9
-KUSTOMIZE_VERSION ?= v5.3.0
+KUSTOMIZE_VERSION ?= v5.7.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.1
 ENVTEST_VERSION ?= latest
 GOLANGCI_LINT_VERSION ?= v1.54.2

@@ -19,15 +19,18 @@ package controller
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/tools/record"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
+	conditions "sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -38,11 +41,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/pkg/errors"
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	"github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 	"github.com/vultr/cluster-api-provider-vultr/cloud/scope"
 	"github.com/vultr/cluster-api-provider-vultr/cloud/services"
 	"github.com/vultr/cluster-api-provider-vultr/util/reconciler"
-	capierrors "sigs.k8s.io/cluster-api/errors" //nolint:staticcheck
+	//nolint:staticcheck
 )
 
 // VultrMachineReconciler reconciles a VultrMachine object
@@ -68,7 +71,7 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	log := ctrl.LoggerFrom(ctx)
 
 	// Fetch the VultrMachine.
-	vultrMachine := &infrav1.VultrMachine{}
+	vultrMachine := &v1beta2.VultrMachine{}
 	if err := r.Get(ctx, req.NamespacedName, vultrMachine); err != nil {
 		if apierrors.IsNotFound(err) {
 			return reconcile.Result{}, nil
@@ -94,7 +97,7 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 	}
 
 	// Fetch the VultrCluster.
-	vultrCluster := &infrav1.VultrCluster{}
+	vultrCluster := &v1beta2.VultrCluster{}
 	vultrClusterName := client.ObjectKey{
 		Namespace: vultrMachine.Namespace,
 		Name:      cluster.Spec.InfrastructureRef.Name,
@@ -151,17 +154,18 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineScope *scope.MachineScope, clusterScope *scope.ClusterScope) (reconcile.Result, error) {
 	machineScope.Info("Reconciling VultrMachine")
-	vultrmachine := machineScope.VultrMachine
+	vultrMachine := machineScope.VultrMachine
 
-	if vultrmachine.Status.FailureReason != nil || vultrmachine.Status.FailureMessage != nil {
-		machineScope.Info("Error state detected, skipping reconciliation")
+	// Early exit if machine infrastructure is in a terminal failure state
+	if conditions.IsFalse(vultrMachine, clusterv1.InfrastructureReadyCondition) {
+		machineScope.Info("Machine infrastructure has failed, skipping reconciliation")
 		return reconcile.Result{}, nil
 	}
 
 	// If the VultrMachine doesn't have our finalizer, add it.
-	controllerutil.AddFinalizer(machineScope.VultrMachine, infrav1.MachineFinalizer)
+	controllerutil.AddFinalizer(machineScope.VultrMachine, v1beta2.MachineFinalizer)
 
-	if !machineScope.Cluster.Status.InfrastructureReady {
+	if !conditions.IsTrue(machineScope.Cluster, clusterv1.InfrastructureReadyCondition) {
 		machineScope.Info("Cluster infrastructure is not ready yet")
 		return reconcile.Result{}, nil
 	}
@@ -172,66 +176,105 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		return reconcile.Result{}, nil
 	}
 
-	r.Recorder.Event(vultrmachine, corev1.EventTypeNormal, "InstanceServiceInitializing", "Initializing instance service")
+	r.Recorder.Event(vultrMachine, corev1.EventTypeNormal, "InstanceServiceInitializing", "Initializing instance service")
 	instancesvc := services.NewService(ctx, clusterScope)
-	r.Recorder.Event(vultrmachine, corev1.EventTypeNormal, "InstanceServiceInitialized", "Instance service initialized")
+	r.Recorder.Event(vultrMachine, corev1.EventTypeNormal, "InstanceServiceInitialized", "Instance service initialized")
 
 	machineID := machineScope.GetInstanceID()
-	r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "InstanceRetrieving", "Retrieving instance with ID %s", machineID)
+	r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "InstanceRetrieving", "Retrieving instance with ID %s", machineID)
 	instance, err := instancesvc.GetInstance(machineID)
 	if err != nil {
 		return reconcile.Result{}, err
 	}
 
 	if instance == nil {
-		r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "InstanceCreating", "Instance is nil attempting create %v", instance)
+		r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "InstanceCreating", "Instance is nil, attempting create")
 		instance, err = instancesvc.CreateInstance(machineScope)
-		instancePayload, _ := json.Marshal(vultrmachine)
+		instancePayload, _ := json.Marshal(vultrMachine)
 		machineScope.Info("Created new instance", "payload", string(instancePayload))
 		if err != nil {
-			err = errors.Errorf("Failed to create instance for VultrMachine %s/%s: %v", vultrmachine.Namespace, vultrmachine.Name, err)
-			r.Recorder.Event(vultrmachine, corev1.EventTypeWarning, "InstanceCreatingError", err.Error())
-			machineScope.SetInstanceServerState(infrav1.ServerStateError)
+			r.Recorder.Eventf(vultrMachine, corev1.EventTypeWarning, "InstanceCreatingError",
+				"Failed to create instance for VultrMachine %s/%s: %v", vultrMachine.Namespace, vultrMachine.Name, err)
+			conditions.Set(vultrMachine, metav1.Condition{
+				Type:               clusterv1.InfrastructureReadyCondition,
+				Status:             metav1.ConditionFalse,
+				Reason:             "InstanceCreationFailed",
+				Message:            err.Error(),
+				LastTransitionTime: metav1.Now(),
+			})
 			return reconcile.Result{}, err
 		}
-		r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "InstanceCreated", "Created new instance instance - %s, payload: %s", instance.Label, string(instancePayload))
+		r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "InstanceCreated",
+			"Created new instance - %s, payload: %s", instance.Label, string(instancePayload))
 	}
 
 	machineScope.SetProviderID(instance.ID)
-	r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "SetInstanceStatus", "Setting Instance Status %s", instance.Label)
-	machineScope.SetInstanceStatus(infrav1.SubscriptionStatus(instance.Status))
+	machineScope.SetInstanceStatus(v1beta2.SubscriptionStatus(instance.Status))
+	r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "SetInstanceStatus", "Setting instance status %s", instance.Label)
 
 	if strings.Contains(instance.Label, "control-plane") {
-		r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "AddInstanceToVLB", "Instance %s is a control plane node, adding to VLB", instance.ID)
-		err := instancesvc.AddInstanceToVLB(clusterScope.APIServerLoadbalancersRef().ResourceID, instance.ID)
-		if err != nil {
-			r.Recorder.Eventf(vultrmachine, corev1.EventTypeWarning, "AddInstanceToVLBFailed", "Failed to add instance %s to VLB: %v", instance.ID, err)
+		r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "AddInstanceToVLB",
+			"Instance %s is a control plane node, adding to VLB", instance.ID)
+		if err := instancesvc.AddInstanceToVLB(clusterScope.APIServerLoadbalancersRef().ResourceID, instance.ID); err != nil {
+			r.Recorder.Eventf(vultrMachine, corev1.EventTypeWarning, "AddInstanceToVLBFailed",
+				"Failed to add instance %s to VLB: %v", instance.ID, err)
 			return reconcile.Result{}, errors.Wrap(err, "failed to add instance to VLB")
 		}
-		r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "AddInstanceToVLBSuccess", "Successfully added instance %s to VLB", instance.ID)
+		r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "AddInstanceToVLBSuccess",
+			"Successfully added instance %s to VLB", instance.ID)
 	}
 
-	r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "GetInstanceAddress", "Getting address for instance %s", instance.ID)
+	r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "GetInstanceAddress", "Getting address for instance %s", instance.ID)
 	addrs, err := instancesvc.GetInstanceAddress(instance)
 	if err != nil {
-		r.Recorder.Eventf(vultrmachine, corev1.EventTypeWarning, "GetInstanceAddressFailed", "Failed to get address for instance %s: %v", instance.ID, err)
-		machineScope.SetFailureMessage(errors.New("failed to get instance address"))
+		r.Recorder.Eventf(vultrMachine, corev1.EventTypeWarning, "GetInstanceAddressFailed",
+			"Failed to get address for instance %s: %v", instance.ID, err)
+		conditions.Set(vultrMachine, metav1.Condition{
+			Type:               clusterv1.InfrastructureReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             "FailedToGetInstanceAddress",
+			Message:            err.Error(),
+			LastTransitionTime: metav1.Now(),
+		})
 		return reconcile.Result{}, err
 	}
-	r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "GetInstanceAddressSuccess", "Successfully retrieved address for instance %s: %v", instance.ID, addrs)
 	machineScope.SetAddresses(addrs)
+	r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "GetInstanceAddressSuccess",
+		"Successfully retrieved address for instance %s: %v", instance.ID, addrs)
 
-	switch infrav1.SubscriptionStatus(instance.Status) {
-	case infrav1.SubscriptionStatusPending:
+	switch v1beta2.SubscriptionStatus(instance.Status) {
+	case v1beta2.SubscriptionStatusPending:
 		machineScope.Info("Machine instance is pending", "instance-id", machineScope.GetInstanceID())
+		conditions.Set(vultrMachine, metav1.Condition{
+			Type:               clusterv1.InfrastructureReadyCondition,
+			Status:             metav1.ConditionUnknown,
+			Reason:             "InstancePending",
+			Message:            "Instance is provisioning",
+			LastTransitionTime: metav1.Now(),
+		})
 		return reconcile.Result{RequeueAfter: 10 * time.Second}, nil
-	case infrav1.SubscriptionStatusActive:
+
+	case v1beta2.SubscriptionStatusActive:
 		machineScope.Info("Machine instance is active", "instance-id", machineScope.GetInstanceID())
-		machineScope.SetReady()
+		conditions.Set(vultrMachine, metav1.Condition{
+			Type:               clusterv1.InfrastructureReadyCondition,
+			Status:             metav1.ConditionTrue,
+			Reason:             "InstanceActive",
+			Message:            "Instance is active",
+			LastTransitionTime: metav1.Now(),
+		})
 		return reconcile.Result{}, nil
+
 	default:
-		machineScope.SetFailureReason(capierrors.UpdateMachineError)
-		machineScope.SetFailureMessage(errors.Errorf("Instance status %q is unexpected", instance.Status))
+		errMsg := fmt.Sprintf("Instance status %q is unexpected", instance.Status)
+		machineScope.Info("Machine instance status is unexpected", "instance-id", machineScope.GetInstanceID(), "status", instance.Status)
+		conditions.Set(vultrMachine, metav1.Condition{
+			Type:               clusterv1.InfrastructureReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             "UnexpectedStatus",
+			Message:            errMsg,
+			LastTransitionTime: metav1.Now(),
+		})
 		return reconcile.Result{}, nil
 	}
 }
@@ -256,30 +299,30 @@ func (r *VultrMachineReconciler) reconcileDelete(ctx context.Context, machineSco
 	}
 
 	r.Recorder.Eventf(vultrmachine, corev1.EventTypeNormal, "InstanceDeleted", "Deleted a instance - %s", machineScope.Name())
-	controllerutil.RemoveFinalizer(vultrmachine, infrav1.MachineFinalizer)
+	controllerutil.RemoveFinalizer(vultrmachine, v1beta2.MachineFinalizer)
 	return reconcile.Result{}, nil
 }
 func (r *VultrMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager, _ controller.Options) error {
-	clusterToObjectFunc, err := util.ClusterToTypedObjectsMapper(r.Client, &infrav1.VultrMachineList{}, mgr.GetScheme())
+	clusterToObjectFunc, err := util.ClusterToTypedObjectsMapper(r.Client, &v1beta2.VultrMachineList{}, mgr.GetScheme())
 	if err != nil {
 		return errors.Wrapf(err, "failed to create mapper for Cluster to VultrMachines")
 	}
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&infrav1.VultrMachine{}).
+		For(&v1beta2.VultrMachine{}).
 		WithEventFilter(predicates.ResourceNotPaused(mgr.GetScheme(), ctrl.LoggerFrom(ctx))).
 		Watches(
 			&clusterv1.Machine{},
-			handler.EnqueueRequestsFromMapFunc(util.MachineToInfrastructureMapFunc(infrav1.GroupVersion.WithKind("VultrMachine"))),
+			handler.EnqueueRequestsFromMapFunc(util.MachineToInfrastructureMapFunc(v1beta2.GroupVersion.WithKind("VultrMachine"))),
 		).
 		Watches(
-			&infrav1.VultrCluster{},
+			&v1beta2.VultrCluster{},
 			handler.EnqueueRequestsFromMapFunc(r.VultrClusterToVultrMachines(ctx)),
 		).
 		Watches(
 			&clusterv1.Cluster{},
 			handler.EnqueueRequestsFromMapFunc(clusterToObjectFunc),
-			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureReady(mgr.GetScheme(), ctrl.LoggerFrom(ctx))),
+			builder.WithPredicates(predicates.ClusterPausedTransitionsOrInfrastructureProvisioned(mgr.GetScheme(), ctrl.LoggerFrom(ctx))),
 		).
 		Complete(r)
 }
@@ -290,7 +333,7 @@ func (r *VultrMachineReconciler) VultrClusterToVultrMachines(ctx context.Context
 	return func(ctx context.Context, o client.Object) []ctrl.Request {
 		result := []ctrl.Request{}
 
-		c, ok := o.(*infrav1.VultrCluster)
+		c, ok := o.(*v1beta2.VultrCluster)
 		if !ok {
 			log.Error(errors.Errorf("expected a VultrCluster but got a %T", o), "failed to get VultrMachine for VultrCluster")
 			return nil

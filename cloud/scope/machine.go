@@ -25,14 +25,13 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	capierrors "sigs.k8s.io/cluster-api/errors" //nolint:staticcheck
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 )
 
 // MachineScopeParams defines the input parameters used to create a new MachineScope.
@@ -226,17 +225,17 @@ func (m *MachineScope) SetInstanceServerState(v infrav1.ServerState) {
 	m.VultrMachine.Status.ServerState = &v
 }
 
-// SetFailureMessage sets the VultrMachine status error message.
-func (m *MachineScope) SetFailureMessage(v error) {
-	m.VultrMachine.Status.FailureMessage = ptr.To(v.Error())
-}
+// // SetFailureMessage sets the VultrMachine status error message.
+// func (m *MachineScope) SetFailureMessage(v error) {
+// 	m.VultrMachine.Status.FailureMessage = ptr.To(v.Error())
+// }
 
 // SetAddresses sets the address status.
 func (m *MachineScope) SetAddresses(addrs []corev1.NodeAddress) {
 	m.VultrMachine.Status.Addresses = addrs
 }
 
-// SetFailureReason sets the VultrMachine status error reason.
-func (m *MachineScope) SetFailureReason(v capierrors.MachineStatusError) {
-	m.VultrMachine.Status.FailureReason = &v
-}
+// // SetFailureReason sets the VultrMachine status error reason.
+// func (m *MachineScope) SetFailureReason(v capierrors.MachineStatusError) {
+// 	m.VultrMachine.Status.FailureReason = &v
+// }

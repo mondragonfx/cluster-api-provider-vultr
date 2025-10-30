@@ -18,7 +18,7 @@ spec:
     singular: vultrclustertemplate
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - name: v1beta2
     schema:
       openAPIV3Schema:
         description: VultrClusterTemplate is the Schema for the vultrclustertemplates
@@ -48,25 +48,26 @@ spec:
                 description: VultrClusterTemplateResource contains spec for VultrClusterSpec.
                 properties:
                   spec:
-                    description: VultrClusterSpec defines the desired state of VultrCluster
+                    description: VultrClusterSpec defines the desired state of VultrCluster.
                     properties:
                       controlPlaneEndpoint:
                         description: ControlPlaneEndpoint represents the endpoint
                           used to communicate with the control plane.
+                        minProperties: 1
                         properties:
                           host:
                             description: host is the hostname on which the API server
                               is serving.
                             maxLength: 512
+                            minLength: 1
                             type: string
                           port:
                             description: port is the port on which the API server
                               is serving.
                             format: int32
+                            maximum: 65535
+                            minimum: 1
                             type: integer
-                        required:
-                        - host
-                        - port
                         type: object
                       network:
                         description: NetworkSpec encapsulates all things related to
@@ -173,7 +174,7 @@ spec:
                             type: object
                         type: object
                       region:
-                        description: The Vultr Region (DCID) the cluster lives on
+                        description: The Vultr Region (DCID) the cluster lives on.
                         type: string
                     required:
                     - region
