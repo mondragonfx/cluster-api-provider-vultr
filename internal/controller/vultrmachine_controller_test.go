@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	infrastructurev1beta1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrastructurev1beta2 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 )
 
 var _ = Describe("VultrMachine Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("VultrMachine Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		vultrmachine := &infrastructurev1beta1.VultrMachine{}
+		vultrmachine := &infrastructurev1beta2.VultrMachine{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind VultrMachine")
 			err := k8sClient.Get(ctx, typeNamespacedName, vultrmachine)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &infrastructurev1beta1.VultrMachine{
+				resource := &infrastructurev1beta2.VultrMachine{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("VultrMachine Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &infrastructurev1beta1.VultrMachine{}
+			resource := &infrastructurev1beta2.VultrMachine{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

@@ -5,8 +5,8 @@ import (
 	"fmt"
 
 	"github.com/pkg/errors"
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	"github.com/go-logr/logr"
 	"sigs.k8s.io/cluster-api/util/patch"
@@ -125,10 +125,10 @@ func (s *ClusterScope) Name() string {
 	return s.Cluster.GetName()
 }
 
-// SetReady sets the VultrCluster Ready Status.
-func (s *ClusterScope) SetReady() {
-	s.VultrCluster.Status.Ready = true
-}
+// // SetReady sets the VultrCluster Ready Status.
+// func (s *ClusterScope) SetReady() {
+// 	s.VultrCluster.Status.Ready = true
+// }
 
 // SetControlPlaneEndpoint sets the VultrCluster status APIEndpoints.
 func (s *ClusterScope) SetControlPlaneEndpoint(apiEndpoint clusterv1.APIEndpoint) {

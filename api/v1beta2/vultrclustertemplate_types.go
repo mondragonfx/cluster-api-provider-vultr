@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1beta2
 
 import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -23,30 +23,37 @@ import (
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
-// VultrMachineTemplateSpec defines the desired state of VultrMachineTemplate
-type VultrMachineTemplateSpec struct {
-	Template VultrMachineTemplateResource `json:"template"`
+// VultrClusterTemplateSpec defines the desired state of VultrClusterTemplate
+type VultrClusterTemplateSpec struct {
+	Template VultrClusterTemplateResource `json:"template"`
 }
 
-// +kubebuilder:object:root=true
-// +kubebuilder:resource:path=vultrmachinetemplates,scope=Namespaced,categories=cluster-api,shortName=vmt
-// VultrMachineTemplate is the Schema for the vultrmachinetemplates API
+// VultrClusterTemplateResource contains spec for VultrClusterSpec.
+type VultrClusterTemplateResource struct {
+	Spec VultrClusterSpec `json:"spec"`
+}
 
-type VultrMachineTemplate struct {
+//+kubebuilder:object:root=true
+//+kubebuilder:resource:path=vultrclustertemplates,scope=Namespaced,categories=cluster-api,shortName=vct
+//+kubebuilder:subresource:status
+
+// VultrClusterTemplate is the Schema for the vultrclustertemplates API
+type VultrClusterTemplate struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
 
-	Spec VultrMachineTemplateSpec `json:"spec,omitempty"`
+	Spec VultrClusterTemplateSpec `json:"spec,omitempty"`
 }
 
-// +kubebuilder:object:root=true
-// VultrMachineTemplateList contains a list of VultrMachineTemplate
-type VultrMachineTemplateList struct {
+//+kubebuilder:object:root=true
+
+// VultrClusterTemplateList contains a list of VultrClusterTemplate
+type VultrClusterTemplateList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
-	Items           []VultrMachineTemplate `json:"items"`
+	Items           []VultrClusterTemplate `json:"items"`
 }
 
 func init() {
-	SchemeBuilder.Register(&VultrMachineTemplate{}, &VultrMachineTemplateList{})
+	SchemeBuilder.Register(&VultrClusterTemplate{}, &VultrClusterTemplateList{})
 }

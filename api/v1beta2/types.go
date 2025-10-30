@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1beta2
 
 // ServerStatus represents the status of subscription.
 type SubscriptionStatus string

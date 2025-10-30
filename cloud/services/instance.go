@@ -26,7 +26,7 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/pkg/errors"
 
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 	"github.com/vultr/cluster-api-provider-vultr/cloud/scope"
 	"github.com/vultr/cluster-api-provider-vultr/util"
 	"github.com/vultr/govultr/v3"
@@ -99,10 +99,6 @@ func (s *Service) CreateInstance(scope *scope.MachineScope) (*govultr.Instance, 
 
 	if scope.VultrMachine.Spec.VPCID != "" {
 		instanceReq.AttachVPC = append(instanceReq.AttachVPC, scope.VultrMachine.Spec.VPCID)
-	} else if scope.VultrMachine.Spec.VPC2ID != "" {
-		// Deprecated: VPC2 is no longer supported and functionality will cease in a
-		// future release
-		instanceReq.AttachVPC2 = append(instanceReq.AttachVPC2, scope.VultrMachine.Spec.VPCID) //nolint:staticcheck
 	}
 
 	s.scope.V(2).Info("Building instance tags")

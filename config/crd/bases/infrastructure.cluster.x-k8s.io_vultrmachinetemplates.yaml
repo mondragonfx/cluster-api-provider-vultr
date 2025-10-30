@@ -18,7 +18,7 @@ spec:
     singular: vultrmachinetemplate
   scope: Namespaced
   versions:
-  - name: v1beta1
+  - name: v1beta2
     schema:
       openAPIV3Schema:
         properties:
@@ -51,36 +51,32 @@ spec:
                       of the machine.
                     properties:
                       planID:
-                        description: PlanID is the id of Vultr VPS plan (VPSPLANID).
+                        description: PlanID is the id of the Vultr VPS plan (VPSPLANID).
                         type: string
                       providerID:
-                        description: |-
-                          Foo is an example field of VultrMachine. Edit vultrmachine_types.go to remove/update
-                          ProviderID is the unique identifier as specified by the cloud provider.
+                        description: ProviderID is the unique identifier as specified
+                          by the cloud provider.
                         type: string
                       region:
-                        description: The Vultr Region (DCID) the cluster lives on
+                        description: Region is the Vultr region (DCID) where the instance
+                          will be deployed.
                         type: string
                       snapshot_id:
-                        description: The Application image_id to use when deploying
+                        description: Snapshot is the image_id to use when deploying
                           this instance.
                         type: string
                       sshKey:
-                        description: sshKey is the name of the ssh key to attach to
-                          the instance.
+                        description: SSHKey is the list of SSH key names to attach
+                          to the instance.
                         items:
                           type: string
                         type: array
                       vpc_id:
-                        description: VPCID is the id of the VPC to be attched .
-                        type: string
-                      vpc2_id:
-                        description: |-
-                          VPC2ID is the id of the VPC2.0 to be attched .
-                          Deprecated: VPC2 is no longer supported and functionality will cease in a
-                          future release
+                        description: VPCID is the ID of the VPC to attach the instance
+                          to.
                         type: string
                     required:
+                    - planID
                     - region
                     type: object
                 required:

@@ -17,7 +17,7 @@ limitations under the License.
 package services
 
 import (
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 	"github.com/vultr/govultr/v3"
 )
 
