@@ -1,5 +1,5 @@
 /*
-Copyright 2024.
+Copyright 2025.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
-	infrastructurev1beta1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrastructurev1beta2 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 )
 
 var _ = Describe("VultrCluster Controller", func() {
@@ -40,13 +40,13 @@ var _ = Describe("VultrCluster Controller", func() {
 			Name:      resourceName,
 			Namespace: "default", // TODO(user):Modify as needed
 		}
-		vultrcluster := &infrastructurev1beta1.VultrCluster{}
+		vultrcluster := &infrastructurev1beta2.VultrCluster{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind VultrCluster")
 			err := k8sClient.Get(ctx, typeNamespacedName, vultrcluster)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &infrastructurev1beta1.VultrCluster{
+				resource := &infrastructurev1beta2.VultrCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
 						Namespace: "default",
@@ -59,7 +59,7 @@ var _ = Describe("VultrCluster Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &infrastructurev1beta1.VultrCluster{}
+			resource := &infrastructurev1beta2.VultrCluster{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

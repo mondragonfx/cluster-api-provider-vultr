@@ -6,7 +6,7 @@ TAG                 ?= v0.4.0
 ARCH 				?= amd64
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST_K8S_VERSION = 1.33.0
 
 GOPATH  := $(shell go env GOPATH)
 GOARCH  := $(shell go env GOARCH)
@@ -198,12 +198,12 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 ENVSUBST ?= $(LOCALBIN)/envsubst-$(ENVSUBST_VERSION)
 
 ## Tool Versions
-KUBECTL_VERSION := v1.28.9
-KUSTOMIZE_VERSION ?= v5.3.0
+KUBECTL_VERSION := v1.34.2
+KUSTOMIZE_VERSION ?= v5.7.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.1
 ENVTEST_VERSION ?= latest
-GOLANGCI_LINT_VERSION ?= v1.54.2
-ENVSUBST_VERSION := v1.2.0
+GOLANGCI_LINT_VERSION ?= v2.6.2
+ENVSUBST_VERSION := v1.4.3
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -223,7 +223,7 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
+	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/v2/golangci-lint,${GOLANGCI_LINT_VERSION})
 
 .PHONY: envsubst
 envsubst: $(ENVSUBST) ## Download envsubst locally if necessary.

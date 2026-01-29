@@ -14,23 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1beta2
 
 import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
-	"sigs.k8s.io/cluster-api/errors" //nolint:staticcheck
 )
 
 const (
-	// MachineFinalizer allows ReconcileVultrMachine to clean up Vultr resources associated with VultrMachine before
-	// removing it from the apiserver.
+	// MachineFinalizer allows ReconcileVultrMachine to clean up Vultr resources
+	// associated with VultrMachine before removing it from the apiserver.
 	MachineFinalizer = "vultrmachine.infrastructure.cluster.x-k8s.io"
 )
-
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // VultrMachineSpec defines the desired state of VultrMachine
 type VultrMachineSpec struct {
@@ -71,76 +66,59 @@ type VultrMachineSpec struct {
 	VPC2ID string `json:"vpc2_id,omitempty"`
 }
 
-// VultrMachineStatus defines the observed state of VultrMachine
+// VultrMachineStatus defines the observed state of VultrMachine.
 type VultrMachineStatus struct {
-
-	// Ready represents the infrastructure is ready to be used or not.
+	// Ready indicates the infrastructure is ready to be used.
 	// +optional
-	Ready bool `json:"ready"`
+	Ready bool `json:"ready,omitempty"`
 
-	// Addresses contains the Vultr instance associated addresses.
+	// Initialization provides observations of the machine initialization process.
+	// NOTE: Fields in this struct are part of the Cluster API contract and are used
+	// to orchestrate initial machine provisioning.
+	// The value of these fields is never updated after provisioning is completed.
+	// +optional
+	Initialization MachineInitializationStatus `json:"initialization,omitempty,omitzero"`
+
+	// Addresses contains the associated node addresses.
+	// +optional
 	Addresses []corev1.NodeAddress `json:"addresses,omitempty"`
 
-	// ServerStatus represents the status of subscription.
+	// SubscriptionStatus represents the status of the Vultr subscription.
 	// +optional
 	SubscriptionStatus *SubscriptionStatus `json:"subscriptionStatus,omitempty"`
 
-	// PowerStatus represents that the VPS is powerd on or not
+	// PowerStatus represents whether the VPS is powered on or not.
 	// +optional
 	PowerStatus *PowerStatus `json:"powerStatus,omitempty"`
 
-	// ServerState represents a detail of server state.
+	// ServerState provides details of the server state.
 	// +optional
 	ServerState *ServerState `json:"serverState,omitempty"`
 
-	// FailureReason will be set in the event that there is a terminal problem
-	// reconciling the Machine and will contain a succinct value suitable
-	// for machine interpretation.
-	//
-	// This field should not be set for transitive errors that a controller
-	// faces that are expected to be fixed automatically over
-	// time (like service outages), but instead indicate that something is
-	// fundamentally wrong with the Machine's spec or the configuration of
-	// the controller, and that manual intervention is required. Examples
-	// of terminal errors would be invalid combinations of settings in the
-	// spec, values that are unsupported by the controller, or the
-	// responsible controller itself being critically misconfigured.
-	//
-	// Any transient errors that occur during the reconciliation of Machines
-	// can be added as events to the Machine object and/or logged in the
-	// controller's output.
+	// Conditions represent the observations of the machine's current state.
 	// +optional
-	FailureReason *errors.MachineStatusError `json:"failureReason,omitempty"`
-
-	// FailureMessage will be set in the event that there is a terminal problem
-	// reconciling the Machine and will contain a more verbose string suitable
-	// for logging and human consumption.
-	//
-	// This field should not be set for transitive errors that a controller
-	// faces that are expected to be fixed automatically over
-	// time (like service outages), but instead indicate that something is
-	// fundamentally wrong with the Machine's spec or the configuration of
-	// the controller, and that manual intervention is required. Examples
-	// of terminal errors would be invalid combinations of settings in the
-	// spec, values that are unsupported by the controller, or the
-	// responsible controller itself being critically misconfigured.
-	//
-	// Any transient errors that occur during the reconciliation of Machines
-	// can be added as events to the Machine object and/or logged in the
-	// controller's output.
-	// +optional
-	FailureMessage *string `json:"failureMessage,omitempty"`
-
-	// Conditions defines current service state of the VultrCluster.
-	// +optional
-	Conditions clusterv1.Conditions `json:"conditions,omitempty"`
+	// +listType=map
+	// +listMapKey=type
+	// +kubebuilder:validation:MaxItems=32
+	Conditions []metav1.Condition `json:"conditions,omitempty"`
 }
 
-func (r *VultrMachine) GetConditions() clusterv1.Conditions {
+// MachineInitializationStatus provides observations of the Machine initialization process.
+// +kubebuilder:validation:MinProperties=1
+type MachineInitializationStatus struct {
+	// InfrastructureProvisioned is true when the infrastructure provider reports that
+	// the machine's infrastructure is fully provisioned.
+	// +optional
+	Provisioned bool `json:"provisioned,omitempty"`
+}
+
+// GetConditions returns the list of conditions for a VultrMachine.
+func (r *VultrMachine) GetConditions() []metav1.Condition {
 	return r.Status.Conditions
 }
 
-func (r *VultrMachine) SetConditions(conditions clusterv1.Conditions) {
+// SetConditions sets the conditions on a VultrMachine.
+func (r *VultrMachine) SetConditions(conditions []metav1.Condition) {
 	r.Status.Conditions = conditions
 }
 
@@ -149,11 +127,11 @@ func (r *VultrMachine) SetConditions(conditions clusterv1.Conditions) {
 //+kubebuilder:resource:path=vultrmachines,scope=Namespaced,categories=cluster-api
 //+kubebuilder:printcolumn:name="Cluster",type="string",JSONPath=".metadata.labels.cluster\\.x-k8s\\.io/cluster-name",description="Cluster to which this VultrMachine belongs"
 //+kubebuilder:printcolumn:name="State",type="string",JSONPath=".status.subscriptionStatus",description="Vultr instance state"
-//+kubebuilder:printcolumn:name="Ready",type="string",JSONPath=".status.ready",description="Machine ready status"
+//+kubebuilder:printcolumn:name="Provisioned",type="string",JSONPath=".status.ready",description="Machine ready status"
 //+kubebuilder:printcolumn:name="InstanceID",type="string",JSONPath=".spec.providerID",description="Vultr instance ID"
-//+kubebuilder:printcolumn:name="Machine",type="string",JSONPath=".metadata.ownerReferences[?(@.kind==\"Machine\")].name",description="Machine object which owns with this VultrMachine"
+//+kubebuilder:printcolumn:name="Machine",type="string",JSONPath=".metadata.ownerReferences[?(@.kind==\"Machine\")].name",description="Machine object which owns this VultrMachine"
 
-// VultrMachine is the Schema for the vultrmachines API
+// VultrMachine is the Schema for the vultrmachines API.
 type VultrMachine struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata,omitempty"`
@@ -164,7 +142,7 @@ type VultrMachine struct {
 
 //+kubebuilder:object:root=true
 
-// VultrMachineList contains a list of VultrMachine
+// VultrMachineList contains a list of VultrMachine.
 type VultrMachineList struct {
 	metav1.TypeMeta `json:",inline"`
 	metav1.ListMeta `json:"metadata,omitempty"`
