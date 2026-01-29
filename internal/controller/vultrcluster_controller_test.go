@@ -26,9 +26,12 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
-	infrastructurev1beta1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrastructurev1beta2 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 )
+
+const testNamespace = "default"
 
 var _ = Describe("VultrCluster Controller", func() {
 	Context("When reconciling a resource", func() {
@@ -38,20 +41,26 @@ var _ = Describe("VultrCluster Controller", func() {
 
 		typeNamespacedName := types.NamespacedName{
 			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Namespace: testNamespace,
 		}
-		vultrcluster := &infrastructurev1beta1.VultrCluster{}
+		vultrcluster := &infrastructurev1beta2.VultrCluster{}
 
 		BeforeEach(func() {
 			By("creating the custom resource for the Kind VultrCluster")
 			err := k8sClient.Get(ctx, typeNamespacedName, vultrcluster)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &infrastructurev1beta1.VultrCluster{
+				resource := &infrastructurev1beta2.VultrCluster{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:      resourceName,
-						Namespace: "default",
+						Namespace: testNamespace,
 					},
-					// TODO(user): Specify other spec details if needed.
+					Spec: infrastructurev1beta2.VultrClusterSpec{
+						Region: "ewr",
+						ControlPlaneEndpoint: clusterv1.APIEndpoint{
+							Host: "127.0.0.1",
+							Port: 6443,
+						},
+					},
 				}
 				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
 			}
@@ -59,7 +68,7 @@ var _ = Describe("VultrCluster Controller", func() {
 
 		AfterEach(func() {
 			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &infrastructurev1beta1.VultrCluster{}
+			resource := &infrastructurev1beta2.VultrCluster{}
 			err := k8sClient.Get(ctx, typeNamespacedName, resource)
 			Expect(err).NotTo(HaveOccurred())
 

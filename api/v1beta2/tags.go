@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1beta2
 
 import (
 	"fmt"
@@ -66,19 +66,15 @@ type BuildTagParams struct {
 	Name string
 	// Role is the role associated to the resource.
 	Role string
-	// Any additional tags to be added to the resource.
-	// +optional
-	Additional Tags
 }
 
 // BuildTags builds tags including the cluster tag and returns them in map form.
 func BuildTags(params BuildTagParams) Tags {
-	var tags Tags
+	tags := make(Tags, 0, 4)
 	tags = append(tags, ClusterNameTag(params.ClusterName))
 	tags = append(tags, ClusterNameRoleTag(params.ClusterName, params.Role))
 	tags = append(tags, ClusterNameUIDRoleTag(params.ClusterName, params.ClusterUID, params.Role))
 	tags = append(tags, NameTagFromName(params.Name))
 
-	tags = append(tags, params.Additional...)
 	return tags
 }

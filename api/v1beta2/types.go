@@ -13,7 +13,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package v1beta1
+package v1beta2
 
 // ServerStatus represents the status of subscription.
 type SubscriptionStatus string
@@ -111,6 +111,7 @@ type GenericInfo struct {
 	SSLRedirect        *bool           `json:"ssl_redirect,omitempty"`
 	StickySessions     *StickySessions `json:"sticky_sessions,omitempty"`
 	ProxyProtocol      *bool           `json:"proxy_protocol,omitempty"`
+	PrivateNetwork     string          `json:"private_network,omitempty"`
 	VPC                string          `json:"vpc,omitempty"`
 }
 

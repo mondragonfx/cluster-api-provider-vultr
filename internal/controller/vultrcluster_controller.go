@@ -23,12 +23,15 @@ import (
 	"time"
 
 	"k8s.io/client-go/tools/record"
+	"k8s.io/utils/ptr"
 
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
-	clusterv1 "sigs.k8s.io/cluster-api/api/v1beta1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	clusterutil "sigs.k8s.io/cluster-api/util"
 	"sigs.k8s.io/cluster-api/util/annotations"
+	conditions "sigs.k8s.io/cluster-api/util/conditions"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -40,7 +43,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	"github.com/pkg/errors"
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 	"github.com/vultr/cluster-api-provider-vultr/cloud/scope"
 	"github.com/vultr/cluster-api-provider-vultr/cloud/services"
 	"github.com/vultr/cluster-api-provider-vultr/util/reconciler"
@@ -143,13 +146,13 @@ func (r *VultrClusterReconciler) Reconcile(ctx context.Context, req ctrl.Request
 
 }
 
-func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterScope *scope.ClusterScope) (res ctrl.Result, reterr error) {
+func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterScope *scope.ClusterScope) (ctrl.Result, error) {
 	clusterScope.Info("Reconciling VultrCluster")
-	vultrcluster := clusterScope.VultrCluster
+	vultrCluster := clusterScope.VultrCluster
 	// If the VultrCluster doesn't have finalizer, add it.
-	controllerutil.AddFinalizer(vultrcluster, infrav1.ClusterFinalizer)
+	controllerutil.AddFinalizer(vultrCluster, infrav1.ClusterFinalizer)
 
-	vlbservice := services.NewService(ctx, clusterScope)
+	vlbService := services.NewService(ctx, clusterScope)
 	apiServerLoadbalancer := clusterScope.APIServerLoadbalancers()
 	apiServerLoadbalancer.ApplyDefaults()
 
@@ -160,44 +163,80 @@ func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 		vlbID = apiServerLoadbalancer.ID
 	}
 
-	loadbalancer, err := vlbservice.GetLoadBalancer(vlbID)
+	loadBalancer, err := vlbService.GetLoadBalancer(vlbID)
 	if err != nil {
-		return reconcile.Result{}, err
+		conditions.Set(vultrCluster, metav1.Condition{
+			Type:               infrav1.LoadBalancerReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             infrav1.ErrorFetchingLBReason,
+			Message:            err.Error(),
+			LastTransitionTime: metav1.Now(),
+		})
+		return ctrl.Result{}, err
 	}
 
-	if loadbalancer == nil {
-		loadbalancer, err = vlbservice.CreateLoadBalancer(apiServerLoadbalancer)
+	if loadBalancer == nil {
+		loadBalancer, err = vlbService.CreateLoadBalancer(apiServerLoadbalancer)
 		lbPayload, _ := json.Marshal(apiServerLoadbalancer)
 		if err != nil {
-			return reconcile.Result{}, errors.Wrapf(err, "failed to create load balancers for VultrCluster %s/%s, payload: %s", vultrcluster.Namespace, vultrcluster.Name, string(lbPayload))
+			conditions.Set(vultrCluster, metav1.Condition{
+				Type:               infrav1.LoadBalancerReadyCondition,
+				Status:             metav1.ConditionFalse,
+				Reason:             infrav1.ErrorCreatingLBReason,
+				Message:            fmt.Sprintf("Failed to create load balancer, Payload: %s", string(lbPayload)),
+				LastTransitionTime: metav1.Now(),
+			})
+			return ctrl.Result{}, errors.Wrapf(err, "failed to create load balancer for VultrCluster %s/%s", vultrCluster.Namespace, vultrCluster.Name)
 		}
 
-		r.Recorder.Eventf(vultrcluster, corev1.EventTypeNormal, "LoadBalancerCreated", "Created new load balancers - %s", loadbalancer.Label)
+		r.Recorder.Eventf(vultrCluster, corev1.EventTypeNormal, "LoadBalancerCreated", "Created new load balancer - %s", loadBalancer.Label)
 	}
 
-	apiServerLoadbalancerRef.ResourceID = loadbalancer.ID
-	apiServerLoadbalancerRef.ResourceSubscriptionStatus = infrav1.SubscriptionStatus(loadbalancer.Status)
-	apiServerLoadbalancer.ID = loadbalancer.ID
+	apiServerLoadbalancerRef.ResourceID = loadBalancer.ID
+	apiServerLoadbalancerRef.ResourceSubscriptionStatus = infrav1.SubscriptionStatus(loadBalancer.Status)
+	apiServerLoadbalancer.ID = loadBalancer.ID
 
-	if apiServerLoadbalancerRef.ResourcePowerStatus != infrav1.PowerStatusRunning && loadbalancer.IPV4 == "" {
+	if apiServerLoadbalancerRef.ResourcePowerStatus != infrav1.PowerStatusRunning && loadBalancer.IPV4 == "" {
 		clusterScope.Info("Waiting on API server Global IP Address")
-		return reconcile.Result{RequeueAfter: 15 * time.Second}, nil
+		vultrCluster.Status.Initialization.Provisioned = ptr.To(false)
+		conditions.Set(vultrCluster, metav1.Condition{
+			Type:               infrav1.LoadBalancerReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             infrav1.WaitingForIPReason,
+			Message:            "Waiting for Global IP Address",
+			LastTransitionTime: metav1.Now(),
+		})
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 	}
+	conditions.Set(vultrCluster, metav1.Condition{
+		Type:               infrav1.LoadBalancerReadyCondition,
+		Status:             metav1.ConditionTrue,
+		Reason:             "LoadBalancerReady",
+		Message:            fmt.Sprintf("LoadBalancer got an IP Address - %s", loadBalancer.IPV4),
+		LastTransitionTime: metav1.Now(),
+	})
+	r.Recorder.Eventf(vultrCluster, corev1.EventTypeNormal, "LoadBalancerReady", "LoadBalancer got an IP Address - %s", loadBalancer.IPV4)
 
-	r.Recorder.Eventf(vultrcluster, corev1.EventTypeNormal, "LoadBalancerReady", "LoadBalancer got an IP Address - %s", loadbalancer.IPV4)
-
-	controlPlaneEndpoint := loadbalancer.IPV4
-
+	controlPlaneEndpoint := loadBalancer.IPV4
 	clusterScope.SetControlPlaneEndpoint(clusterv1.APIEndpoint{
 		Host: controlPlaneEndpoint,
 		Port: int32(apiServerLoadbalancer.HealthCheck.Port),
 	})
 
-	clusterScope.Info("Set VultrCluster status to ready")
+	conditions.Set(vultrCluster, metav1.Condition{
+		Type:               infrav1.VultrClusterReadyCondition,
+		Status:             metav1.ConditionTrue,
+		Reason:             "ClusterReady",
+		Message:            "VultrCluster has ready status",
+		LastTransitionTime: metav1.Now(),
+	})
+
 	clusterScope.SetReady()
 	clusterScope.VultrCluster.Status.Ready = true
-	r.Recorder.Eventf(vultrcluster, corev1.EventTypeNormal, "VultrClusterReady", "VultrCluster %s - has ready status", clusterScope.Name())
-	return reconcile.Result{}, nil
+	vultrCluster.Status.Initialization.Provisioned = ptr.To(true)
+	r.Recorder.Eventf(vultrCluster, corev1.EventTypeNormal, "VultrClusterReady", "VultrCluster %s has ready status", clusterScope.Name())
+
+	return ctrl.Result{}, nil
 }
 
 func (r *VultrClusterReconciler) reconcileDelete(ctx context.Context, clusterScope *scope.ClusterScope) (reconcile.Result, error) { //nolint: unparam
