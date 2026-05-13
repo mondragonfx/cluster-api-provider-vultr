@@ -143,6 +143,37 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
+##@ Tilt
+
+TILT_CLUSTER_NAME ?= capvultr
+
+.PHONY: tilt-up
+tilt-up: envsubst kustomize ## Create fresh kind cluster.
+	@echo "==> Setting up kind cluster '$(TILT_CLUSTER_NAME)'..."
+	@kind delete cluster --name $(TILT_CLUSTER_NAME) 2>/dev/null || true
+	@kind create cluster --name $(TILT_CLUSTER_NAME)
+	@kubectl config use-context kind-$(TILT_CLUSTER_NAME)
+	@echo "==> Kind cluster ready."
+
+.PHONY: tilt-start
+tilt-start: ## Start tilt (runs in background).
+	@echo "==> Starting tilt..."
+	@nohup tilt up --stream > /tmp/tilt.log 2>&1 &
+	@sleep 10
+	@echo "==> Tilt UI: http://localhost:10350/"
+	@echo "==> Logs: tail -f /tmp/tilt.log"
+
+.PHONY: tilt-stop
+tilt-stop: ## Stop tilt.
+	@pkill -f "tilt up" 2>/dev/null || true
+	@echo "==> Tilt stopped."
+
+.PHONY: tilt-down
+tilt-down: ## Delete kind cluster.
+	@echo "==> Deleting kind cluster '$(TILT_CLUSTER_NAME)'..."
+	@kind delete cluster --name $(TILT_CLUSTER_NAME) 2>/dev/null || true
+	@echo "==> Done."
+
 ##@ Releasing
 
 RELEASE_DIR ?= out

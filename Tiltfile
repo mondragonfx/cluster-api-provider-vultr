@@ -1,6 +1,6 @@
 # -*- mode: Python -*-
 
-envsubst_cmd = "bin/envsubst-v1.2.0"
+envsubst_cmd = "bin/envsubst-v1.4.3"
 tools_bin = "bin"
 
 #Add tools to path
@@ -16,9 +16,10 @@ settings = {
     "deploy_cert_manager": True,
     "preload_images_for_kind": True,
     "kind_cluster_name": "capvultr",
-    "capi_version": "v1.7.4",
+    "capi_version": "v1.11.2",
     "cert_manager_version": "v1.5.3",
-    "kubernetes_version": "v1.28.9",
+    "kubernetes_version": "v1.32.4",
+    "trigger_mode": "manual",
 }
 
 keys = ["VULTR_API_KEY"]
@@ -108,11 +109,14 @@ RUN wget --output-document /restart.sh --quiet https://raw.githubusercontent.com
 """
 
 tilt_dockerfile_header = """
-FROM gcr.io/distroless/base:debug as tilt
-WORKDIR /
+FROM debian:stable-slim as tilt
+RUN groupadd --gid 65532 nonroot && useradd --uid 65532 --gid nonroot nonroot
+WORKDIR /tilt
 COPY --from=tilt-helper /start.sh .
 COPY --from=tilt-helper /restart.sh .
 COPY manager .
+RUN chmod 0777 /tilt && touch /tilt/process.txt && chmod 0777 /tilt/process.txt
+USER 65532:65532
 """
 
 # Build CAPVULTR and add feature gates
@@ -144,7 +148,7 @@ def capvultr():
         tilt_dockerfile_header,
     ])
 
-    entrypoint = ["sh", "/start.sh", "/manager"]
+    entrypoint = ["sh", "/tilt/start.sh", "/tilt/manager"]
     extra_args = settings.get("extra_args")
     if extra_args:
         entrypoint.extend(extra_args)
@@ -152,15 +156,15 @@ def capvultr():
     # Set up an image build for the provider. The live update configuration syncs the output from the local_resource
     # build into the container.
     docker_build(
-        ref = "gcr.io/k8s-staging-cluster-api-vultr/capvultr-controller-image",
+        ref = "sjc.vultrcr.com/dragoncity/cluster-api-provider-vultr:v0.5.0-beta.1",
         context = "./.tiltbuild/",
         dockerfile_contents = dockerfile_contents,
         target = "tilt",
         entrypoint = entrypoint,
         only = "manager",
         live_update = [
-            sync(".tiltbuild/manager", "/manager"),
-            run("sh /restart.sh"),
+            sync(".tiltbuild/manager", "/tilt/manager"),
+            run("sh /tilt/restart.sh"),
         ],
         ignore = ["templates"]
     )
@@ -203,7 +207,8 @@ include_user_tilt_files()
 load("ext://cert_manager", "deploy_cert_manager")
 
 if settings.get("deploy_cert_manager"):
-    deploy_cert_manager()
+    cert_version = settings.get("cert_manager_version")
+    deploy_cert_manager(version=cert_version)
 
 deploy_capi()
 

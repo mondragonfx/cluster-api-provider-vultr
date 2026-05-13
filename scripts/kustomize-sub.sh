@@ -1,4 +1,7 @@
 root=$(dirname "$0")
 bin_dir="$root/../bin"
 
-"$bin_dir/kustomize-v5.3.0" build "$1" | "$bin_dir/envsubst-v1.2.0"
+kustomize=$(ls "$bin_dir"/kustomize-* 2>/dev/null | head -1)
+envsubst=$(ls "$bin_dir"/envsubst-* 2>/dev/null | head -1)
+
+"$kustomize" build "$1" | "$envsubst"
