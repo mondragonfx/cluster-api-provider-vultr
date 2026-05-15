@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	corev1 "k8s.io/api/core/v1"
@@ -218,7 +217,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 	r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "SetInstanceStatus", "Setting instance status %s", instance.Label)
 
 	// Add control-plane nodes to VLB
-	if strings.Contains(instance.Label, "control-plane") {
+	if util.IsControlPlaneMachine(machineScope.Machine) {
 		r.Recorder.Eventf(vultrMachine, corev1.EventTypeNormal, "AddInstanceToVLB",
 			"Instance %s is a control plane node, adding to VLB", instance.ID)
 		if err := instanceSvc.AddInstanceToVLB(clusterScope.APIServerLoadbalancersRef().ResourceID, instance.ID); err != nil {
