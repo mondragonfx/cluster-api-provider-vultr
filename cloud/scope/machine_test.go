@@ -19,7 +19,7 @@ package scope
 import (
 	"testing"
 
-infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
+	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 

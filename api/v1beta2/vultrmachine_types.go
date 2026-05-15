@@ -83,7 +83,7 @@ type VultrMachineStatus struct {
 	// +optional
 	Storage int `json:"storage,omitempty"`
 
-// Initialization provides observations of the machine initialization process.
+	// Initialization provides observations of the machine initialization process.
 	// NOTE: Fields in this struct are part of the Cluster API contract and are used
 	// to orchestrate initial machine provisioning.
 	// The value of these fields is never updated after provisioning is completed.

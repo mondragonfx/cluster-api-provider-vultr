@@ -230,18 +230,6 @@ func (m *MachineScope) SetAddresses(addrs []corev1.NodeAddress) {
 	m.VultrMachine.Status.Addresses = addrs
 }
 
-func (m *MachineScope) SetCPU(v int) {
-	m.VultrMachine.Status.CPU = v
-}
-
-func (m *MachineScope) SetRAM(v int) {
-	m.VultrMachine.Status.RAM = v
-}
-
-func (m *MachineScope) SetStorage(v int) {
-	m.VultrMachine.Status.Storage = v
-}
-
 // SetCPU sets the VultrMachine CPU status.
 func (m *MachineScope) SetCPU(v int) {
 	m.VultrMachine.Status.CPU = v
