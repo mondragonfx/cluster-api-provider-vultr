@@ -1,0 +1,36 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+    cni: ${CLUSTER_NAME}-cilium
+spec:
+  topology:
+    classRef:
+      name: vultr
+    version: ${KUBERNETES_VERSION:=v1.32.4}
+    controlPlane:
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
+    workers:
+      machineDeployments:
+      - class: default-worker
+        name: md-0
+        replicas: ${WORKER_MACHINE_COUNT:=1}
+    variables:
+    - name: REGION
+      value: ${REGION}
+    - name: CONTROL_PLANE_PLAN_ID
+      value: ${CONTROL_PLANE_PLAN_ID}
+    - name: WORKER_PLAN_ID
+      value: ${WORKER_PLAN_ID}
+    - name: VPC_ID
+      value: ${VPC_ID}
+    - name: MACHINE_IMAGE
+      value: ${MACHINE_IMAGE}
+    - name: SSH_KEY_ID
+      value: ${SSH_KEY_ID}
+    - name: CLUSTER_CIDR
+      value: ${CLUSTER_CIDR:=172.25.0.0/16}
+    - name: SERVICE_CIDR
+      value: ${SERVICE_CIDR:=172.26.0.0/16}

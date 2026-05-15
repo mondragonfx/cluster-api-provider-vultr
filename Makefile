@@ -6,7 +6,7 @@ TAG                 ?= v0.4.0
 ARCH 				?= amd64
 
 # ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.29.0
+ENVTEST_K8S_VERSION = 1.33.0
 
 GOPATH  := $(shell go env GOPATH)
 GOARCH  := $(shell go env GOARCH)
@@ -143,19 +143,54 @@ deploy: manifests kustomize ## Deploy controller to the K8s cluster specified in
 undeploy: kustomize ## Undeploy controller from the K8s cluster specified in ~/.kube/config. Call with ignore-not-found=true to ignore resource not found errors during deletion.
 	$(KUSTOMIZE) build config/default | $(KUBECTL) delete --ignore-not-found=$(ignore-not-found) -f -
 
+##@ Tilt
+
+TILT_CLUSTER_NAME ?= capvultr
+
+.PHONY: tilt-up
+tilt-up: envsubst kustomize ## Create fresh kind cluster.
+	@echo "==> Setting up kind cluster '$(TILT_CLUSTER_NAME)'..."
+	@kind delete cluster --name $(TILT_CLUSTER_NAME) 2>/dev/null || true
+	@kind create cluster --name $(TILT_CLUSTER_NAME)
+	@kubectl config use-context kind-$(TILT_CLUSTER_NAME)
+	@echo "==> Kind cluster ready."
+
+.PHONY: tilt-start
+tilt-start: ## Start tilt (runs in background).
+	@echo "==> Starting tilt..."
+	@nohup tilt up --stream > /tmp/tilt.log 2>&1 &
+	@sleep 10
+	@echo "==> Tilt UI: http://localhost:10350/"
+	@echo "==> Logs: tail -f /tmp/tilt.log"
+
+.PHONY: tilt-stop
+tilt-stop: ## Stop tilt.
+	@pkill -f "tilt up" 2>/dev/null || true
+	@echo "==> Tilt stopped."
+
+.PHONY: tilt-down
+tilt-down: ## Delete kind cluster.
+	@echo "==> Deleting kind cluster '$(TILT_CLUSTER_NAME)'..."
+	@kind delete cluster --name $(TILT_CLUSTER_NAME) 2>/dev/null || true
+	@echo "==> Done."
+
 ##@ Releasing
 
 RELEASE_DIR ?= out
 
 .PHONY: release
-release: kustomize clean-release set-manifest-image release-manifests release-templates clean-release-git
+release: kustomize clean-release set-manifest-image generate-release release-metadata clean-release-git
 
 $(RELEASE_DIR):
 	mkdir -p $(RELEASE_DIR)/
 
-.PHONY: release-templates
-release-templates: $(RELEASE_DIR)
-	cp templates/cluster-template* $(RELEASE_DIR)/
+.PHONY: generate-release
+generate-release: $(KUSTOMIZE) $(RELEASE_DIR)
+	bash hack/generate-release.sh
+
+.PHONY: release-metadata
+release-metadata: $(RELEASE_DIR)
+	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
 
 .PHONY: set-manifest-image
 set-manifest-image: ## Update kustomize image patch file for default resource.
@@ -163,7 +198,6 @@ set-manifest-image: ## Update kustomize image patch file for default resource.
 
 .PHONY: release-manifests
 release-manifests: $(KUSTOMIZE) $(RELEASE_DIR) ## Builds the manifests to publish with a release
-	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
 	kustomize build config/default > $(RELEASE_DIR)/infrastructure-components.yaml
 
 ##@ Cleanup:
@@ -198,12 +232,12 @@ GOLANGCI_LINT = $(LOCALBIN)/golangci-lint-$(GOLANGCI_LINT_VERSION)
 ENVSUBST ?= $(LOCALBIN)/envsubst-$(ENVSUBST_VERSION)
 
 ## Tool Versions
-KUBECTL_VERSION := v1.28.9
-KUSTOMIZE_VERSION ?= v5.3.0
+KUBECTL_VERSION := v1.34.2
+KUSTOMIZE_VERSION ?= v5.7.1
 CONTROLLER_TOOLS_VERSION ?= v0.17.1
 ENVTEST_VERSION ?= latest
-GOLANGCI_LINT_VERSION ?= v1.54.2
-ENVSUBST_VERSION := v1.2.0
+GOLANGCI_LINT_VERSION ?= v2.12.2
+ENVSUBST_VERSION := v1.4.3
 
 .PHONY: kustomize
 kustomize: $(KUSTOMIZE) ## Download kustomize locally if necessary.
@@ -223,7 +257,7 @@ $(ENVTEST): $(LOCALBIN)
 .PHONY: golangci-lint
 golangci-lint: $(GOLANGCI_LINT) ## Download golangci-lint locally if necessary.
 $(GOLANGCI_LINT): $(LOCALBIN)
-	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
+	$(call go-install-tool,$(GOLANGCI_LINT),github.com/golangci/golangci-lint/v2/cmd/golangci-lint,${GOLANGCI_LINT_VERSION})
 
 .PHONY: envsubst
 envsubst: $(ENVSUBST) ## Download envsubst locally if necessary.

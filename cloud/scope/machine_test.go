@@ -19,8 +19,13 @@ package scope
 import (
 	"testing"
 
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+)
+
+const (
+	testMachineName      = "test-machine"
+	testMachineNamespace = "default"
 )
 
 func TestMachineScope_SetCPU(t *testing.T) {
@@ -51,8 +56,8 @@ func TestMachineScope_SetCPU(t *testing.T) {
 			machineScope := &MachineScope{
 				VultrMachine: &infrav1.VultrMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-machine",
-						Namespace: "default",
+						Name:      testMachineName,
+						Namespace: testMachineNamespace,
 					},
 				},
 			}
@@ -94,8 +99,8 @@ func TestMachineScope_SetRAM(t *testing.T) {
 			machineScope := &MachineScope{
 				VultrMachine: &infrav1.VultrMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-machine",
-						Namespace: "default",
+						Name:      testMachineName,
+						Namespace: testMachineNamespace,
 					},
 				},
 			}
@@ -137,8 +142,8 @@ func TestMachineScope_SetStorage(t *testing.T) {
 			machineScope := &MachineScope{
 				VultrMachine: &infrav1.VultrMachine{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      "test-machine",
-						Namespace: "default",
+						Name:      testMachineName,
+						Namespace: testMachineNamespace,
 					},
 				},
 			}

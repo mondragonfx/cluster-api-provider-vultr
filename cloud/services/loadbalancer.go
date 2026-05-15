@@ -17,9 +17,11 @@ limitations under the License.
 package services
 
 import (
-	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta1"
+	infrav1 "github.com/vultr/cluster-api-provider-vultr/api/v1beta2"
 	"github.com/vultr/govultr/v3"
 )
+
+const tcpProtocol = "tcp"
 
 func (s *Service) GetLoadBalancer(id string) (*govultr.LoadBalancer, error) {
 	if id == "" {
@@ -43,14 +45,14 @@ func (s *Service) CreateLoadBalancer(spec *infrav1.VultrLoadBalancer) (*govultr.
 		VPC:    s.scope.VPC(),
 		ForwardingRules: []govultr.ForwardingRule{
 			{
-				FrontendProtocol: "tcp",
+				FrontendProtocol: tcpProtocol,
 				FrontendPort:     spec.HealthCheck.Port,
-				BackendProtocol:  "tcp",
+				BackendProtocol:  tcpProtocol,
 				BackendPort:      spec.HealthCheck.Port,
 			},
 		},
 		HealthCheck: &govultr.HealthCheck{
-			Protocol:           "tcp",
+			Protocol:           tcpProtocol,
 			Port:               spec.HealthCheck.Port,
 			CheckInterval:      spec.HealthCheck.CheckInterval,
 			ResponseTimeout:    spec.HealthCheck.ResponseTimeout,
@@ -61,7 +63,8 @@ func (s *Service) CreateLoadBalancer(spec *infrav1.VultrLoadBalancer) (*govultr.
 	}
 
 	if len(spec.FirewallRules) > 0 {
-		var fwRules []govultr.LBFirewallRule
+		//nolint:prealloc
+		fwRules := make([]govultr.LBFirewallRule, 0)
 		for _, r := range spec.FirewallRules {
 			fwRules = append(fwRules, govultr.LBFirewallRule{
 				IPType: r.IPType,
