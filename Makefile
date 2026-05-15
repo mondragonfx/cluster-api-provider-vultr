@@ -179,14 +179,18 @@ tilt-down: ## Delete kind cluster.
 RELEASE_DIR ?= out
 
 .PHONY: release
-release: kustomize clean-release set-manifest-image release-manifests release-templates clean-release-git
+release: kustomize clean-release set-manifest-image generate-release release-metadata clean-release-git
 
 $(RELEASE_DIR):
 	mkdir -p $(RELEASE_DIR)/
 
-.PHONY: release-templates
-release-templates: $(RELEASE_DIR)
-	cp templates/cluster-template* $(RELEASE_DIR)/
+.PHONY: generate-release
+generate-release: $(KUSTOMIZE) $(RELEASE_DIR)
+	bash hack/generate-release.sh
+
+.PHONY: release-metadata
+release-metadata: $(RELEASE_DIR)
+	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
 
 .PHONY: set-manifest-image
 set-manifest-image: ## Update kustomize image patch file for default resource.
@@ -194,7 +198,6 @@ set-manifest-image: ## Update kustomize image patch file for default resource.
 
 .PHONY: release-manifests
 release-manifests: $(KUSTOMIZE) $(RELEASE_DIR) ## Builds the manifests to publish with a release
-	cp metadata.yaml $(RELEASE_DIR)/metadata.yaml
 	kustomize build config/default > $(RELEASE_DIR)/infrastructure-components.yaml
 
 ##@ Cleanup:

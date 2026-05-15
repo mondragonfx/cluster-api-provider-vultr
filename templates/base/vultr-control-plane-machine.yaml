@@ -1,0 +1,11 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrMachineTemplate
+metadata:
+  name: vultr-control-plane-machine
+  labels:
+    cluster.x-k8s.io/contract: v1beta2
+spec:
+  template:
+    spec:
+      region: ""
+      sshKey: []

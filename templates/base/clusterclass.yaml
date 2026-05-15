@@ -1,0 +1,237 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: ClusterClass
+metadata:
+  name: vultr
+spec:
+  controlPlane:
+    templateRef:
+      apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+      kind: KubeadmControlPlaneTemplate
+      name: vultr-control-plane
+    machineInfrastructure:
+      templateRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        name: vultr-control-plane-machine
+  infrastructure:
+    templateRef:
+      apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+      kind: VultrClusterTemplate
+      name: vultr-infrastructure
+  workers:
+    machineDeployments:
+    - class: default-worker
+      bootstrap:
+        templateRef:
+          apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+          kind: KubeadmConfigTemplate
+          name: vultr-default-worker
+      infrastructure:
+        templateRef:
+          apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+          kind: VultrMachineTemplate
+          name: vultr-default-worker-machine
+  variables:
+  - name: REGION
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: ewr
+  - name: CONTROL_PLANE_PLAN_ID
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: vc2-8c-32gb
+  - name: WORKER_PLAN_ID
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: vc2-8c-32gb
+  - name: VPC_ID
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: ""
+  - name: MACHINE_IMAGE
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: ""
+  - name: SSH_KEY_ID
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: ""
+  - name: CONTROL_PLANE_MACHINE_COUNT
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: integer
+        default: 1
+  - name: WORKER_MACHINE_COUNT
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: integer
+        default: 1
+  - name: CLUSTER_CIDR
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: 172.25.0.0/16
+  - name: SERVICE_CIDR
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: 172.26.0.0/16
+  patches:
+  - name: REGION
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/region
+        valueFrom:
+          variable: REGION
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/region
+        valueFrom:
+          variable: REGION
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/region
+        valueFrom:
+          variable: REGION
+  - name: CONTROL_PLANE_PLAN_ID
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/planID
+        valueFrom:
+          variable: CONTROL_PLANE_PLAN_ID
+  - name: WORKER_PLAN_ID
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/planID
+        valueFrom:
+          variable: WORKER_PLAN_ID
+  - name: VPC_ID
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrClusterTemplate
+        matchResources:
+          infrastructureCluster: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/vpc_id
+        valueFrom:
+          variable: VPC_ID
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/vpc_id
+        valueFrom:
+          variable: VPC_ID
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/vpc_id
+        valueFrom:
+          variable: VPC_ID
+  - name: MACHINE_IMAGE
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/snapshot_id
+        valueFrom:
+          variable: MACHINE_IMAGE
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/snapshot_id
+        valueFrom:
+          variable: MACHINE_IMAGE
+  - name: SSH_KEY_ID
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/sshKey/-
+        valueFrom:
+          variable: SSH_KEY_ID
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - default-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/sshKey/-
+        valueFrom:
+          variable: SSH_KEY_ID

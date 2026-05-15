@@ -1,0 +1,10 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrClusterTemplate
+metadata:
+  name: vultr-infrastructure
+  labels:
+    cluster.x-k8s.io/contract: v1beta2
+spec:
+  template:
+    spec:
+      region: ""

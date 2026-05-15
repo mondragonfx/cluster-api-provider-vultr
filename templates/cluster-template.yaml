@@ -75,11 +75,11 @@ spec:
   template:
     spec:
       region: "${REGION}"
-      planID: "${CONTROL_PLANE_PLANID}"
-      vpc_id: "${VPCID}"
+      planID: "${CONTROL_PLANE_PLAN_ID}"
+      vpc_id: "${VPC_ID}"
       snapshot_id: "${MACHINE_IMAGE}"
       sshKey:
-        - "${SSHKEY_ID}"
+        - "${SSH_KEY_ID}"
 ---
 apiVersion: cluster.x-k8s.io/v1beta2
 kind: MachineDeployment
@@ -110,11 +110,11 @@ spec:
   template:
     spec:
       region: "${REGION}"
-      planID: "${WORKER_PLANID}"
-      vpc_id: "${VPCID}"
+      planID: "${WORKER_PLAN_ID}"
+      vpc_id: "${VPC_ID}"
       snapshot_id: "${MACHINE_IMAGE}"
       sshKey:
-        - "${SSHKEY_ID}"
+        - "${SSH_KEY_ID}"
 ---
 apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
 kind: KubeadmConfigTemplate
