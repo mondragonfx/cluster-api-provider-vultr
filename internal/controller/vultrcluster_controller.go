@@ -22,7 +22,7 @@ import (
 	"fmt"
 	"time"
 
-	"k8s.io/client-go/tools/record"
+	"k8s.io/client-go/tools/events"
 	"k8s.io/utils/ptr"
 
 	corev1 "k8s.io/api/core/v1"
@@ -53,7 +53,7 @@ import (
 type VultrClusterReconciler struct {
 	client.Client
 	ReconcileTimeout time.Duration
-	Recorder         record.EventRecorder
+	Recorder         events.EventRecorder
 	WatchFilterValue string
 }
 
@@ -189,7 +189,7 @@ func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 			return ctrl.Result{}, errors.Wrapf(err, "failed to create load balancer for VultrCluster %s/%s", vultrCluster.Namespace, vultrCluster.Name)
 		}
 
-		r.Recorder.Eventf(vultrCluster, corev1.EventTypeNormal, "LoadBalancerCreated", "Created new load balancer - %s", loadBalancer.Label)
+		r.Recorder.Eventf(vultrCluster, nil, corev1.EventTypeNormal, "LoadBalancerCreated", "Created", "Created new load balancer - %s", loadBalancer.Label)
 	}
 
 	apiServerLoadbalancerRef.ResourceID = loadBalancer.ID
@@ -215,7 +215,7 @@ func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 		Message:            fmt.Sprintf("LoadBalancer got an IP Address - %s", loadBalancer.IPV4),
 		LastTransitionTime: metav1.Now(),
 	})
-	r.Recorder.Eventf(vultrCluster, corev1.EventTypeNormal, "LoadBalancerReady", "LoadBalancer got an IP Address - %s", loadBalancer.IPV4)
+	r.Recorder.Eventf(vultrCluster, nil, corev1.EventTypeNormal, "LoadBalancerReady", "Ready", "LoadBalancer got an IP Address - %s", loadBalancer.IPV4)
 
 	controlPlaneEndpoint := loadBalancer.IPV4
 	clusterScope.SetControlPlaneEndpoint(clusterv1.APIEndpoint{
@@ -234,7 +234,7 @@ func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 	clusterScope.SetReady()
 	clusterScope.VultrCluster.Status.Ready = true
 	vultrCluster.Status.Initialization.Provisioned = ptr.To(true)
-	r.Recorder.Eventf(vultrCluster, corev1.EventTypeNormal, "VultrClusterReady", "VultrCluster %s has ready status", clusterScope.Name())
+	r.Recorder.Eventf(vultrCluster, nil, corev1.EventTypeNormal, "VultrClusterReady", "Ready", "VultrCluster %s has ready status", clusterScope.Name())
 
 	return ctrl.Result{}, nil
 }
@@ -254,7 +254,7 @@ func (r *VultrClusterReconciler) reconcileDelete(ctx context.Context, clusterSco
 
 	if loadbalancer == nil {
 		clusterScope.V(2).Info("Unable to locate load balancer")
-		r.Recorder.Eventf(vultrcluster, corev1.EventTypeWarning, "NoLoadBalancerFound", "Unable to find matching load balancer")
+		r.Recorder.Eventf(vultrcluster, nil, corev1.EventTypeWarning, "NoLoadBalancerFound", "NotFound", "Unable to find matching load balancer")
 		controllerutil.RemoveFinalizer(vultrcluster, infrav1.ClusterFinalizer)
 		return reconcile.Result{}, nil
 	}
@@ -263,7 +263,7 @@ func (r *VultrClusterReconciler) reconcileDelete(ctx context.Context, clusterSco
 		return reconcile.Result{}, errors.Wrapf(err, "error deleting load balancer for VultrCluster %s/%s", vultrcluster.Namespace, vultrcluster.Name)
 	}
 
-	r.Recorder.Eventf(vultrcluster, corev1.EventTypeNormal, "LoadBalancerDeleted", "Deleted LoadBalancer - %s", loadbalancer.Label)
+	r.Recorder.Eventf(vultrcluster, nil, corev1.EventTypeNormal, "LoadBalancerDeleted", "Deleted", "Deleted LoadBalancer - %s", loadbalancer.Label)
 
 	// Cluster is deleted so remove the finalizer.
 	controllerutil.RemoveFinalizer(vultrcluster, infrav1.ClusterFinalizer)

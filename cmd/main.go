@@ -118,7 +118,7 @@ func main() {
 	if err = (&controllers.VultrClusterReconciler{
 		Client:           mgr.GetClient(),
 		ReconcileTimeout: reconcileTimeout,
-		Recorder:         mgr.GetEventRecorderFor("vultrcluster-controller"),
+		Recorder:         mgr.GetEventRecorder("vultrcluster-controller"),
 	}).SetupWithManager(ctx, mgr, controller.Options{}); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VultrCluster")
 		os.Exit(1)
@@ -126,7 +126,7 @@ func main() {
 	if err = (&controllers.VultrMachineReconciler{
 		Client:           mgr.GetClient(),
 		ReconcileTimeout: reconcileTimeout,
-		Recorder:         mgr.GetEventRecorderFor("vultrmachine-controller"),
+		Recorder:         mgr.GetEventRecorder("vultrmachine-controller"),
 	}).SetupWithManager(ctx, mgr, controller.Options{}); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "VultrMachine")
 		os.Exit(1)
