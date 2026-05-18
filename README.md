@@ -12,7 +12,6 @@ The [Cluster API](https://github.com/kubernetes-sigs/cluster-api) brings declara
 
 The API itself is shared across multiple cloud providers allowing for true Vultr hybrid deployments of Kubernetes.
 
-
 ## Quick Start
 
 Check out the [Cluster API Quick Start](docs/getting-started.md) to create your first Kubernetes cluster.
@@ -21,12 +20,13 @@ Check out the [Cluster API Quick Start](docs/getting-started.md) to create your 
 
 ### Cluster API Versions
 
-This provider's versions are compatible with the following v1beta1 versions of Cluster API:
+This provider's versions are compatible with the following versions of Cluster API:
 
-| CAPVULTR Version       | CAPI v1.7 | CAPI v1.8 | CAPI v1.9 | CAPI v1.10 |
-|------------------------|:---------:|:---------:|:---------:|:----------:|
-| v0.4.0                   |     ✓     |     ✓     |     ✓     |     ✓      |
+| CAPVULTR Version | API Version | CAPI v1.10 | CAPI v1.11 | CAPI v1.12 | CAPI v1.13 |
+|------------------|:------------:|:----------:|:----------:|:----------:|:----------:|
+| v0.4.0           | v1beta1      |      ✓     |            |            |            |
+| v0.5.0           | v1beta2      |            |      ✓     |      ✓     |      ✓     |
 
 ## Kubernetes versions with published Images
 
-Pre-built images are pushed to the [Docker Hub](https://hub.docker.com/u/vultr/cluster-api-provider-vultr). 
+Pre-built images are pushed to the [Docker Hub](https://hub.docker.com/u/vultr/cluster-api-provider-vultr).
