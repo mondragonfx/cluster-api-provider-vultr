@@ -1,0 +1,9 @@
+- op: replace
+  path: /spec/topology/classRef/name
+  value: vultr-bare-metal-cp
+# Slot 0 of the variables is the control plane plan (see ../bare-metal/cluster-template.yaml).
+- op: replace
+  path: /spec/topology/variables/0
+  value:
+    name: BARE_METAL_CONTROL_PLANE_PLAN_ID
+    value: ${BARE_METAL_CONTROL_PLANE_PLAN_ID:=vbm-4c-32gb}

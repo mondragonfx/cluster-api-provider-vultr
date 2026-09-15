@@ -1,0 +1,14 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrBareMetalMachineTemplate
+metadata:
+  name: vultr-bare-metal-control-plane-machine
+  labels:
+    cluster.x-k8s.io/contract: v1beta2
+spec:
+  template:
+    spec:
+      # Placeholders replaced by the ClusterClass patches.
+      region: ewr
+      planID: vbm-4c-32gb
+      osID: 2284
+      sshKey: []

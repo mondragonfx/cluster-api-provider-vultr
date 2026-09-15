@@ -114,6 +114,16 @@ func (s *ClusterScope) APIServerLoadbalancersRef() *infrav1.VultrResourceReferen
 	return &s.VultrCluster.Status.Network.APIServerLoadbalancersRef
 }
 
+// APIServerLoadBalancerID returns the id of the control plane load balancer, from
+// the status reference or, when the status has not been rebuilt yet (for example
+// after clusterctl move), from the spec. Empty when the load balancer does not exist yet.
+func (s *ClusterScope) APIServerLoadBalancerID() string {
+	if id := s.APIServerLoadbalancersRef().ResourceID; id != "" {
+		return id
+	}
+	return s.APIServerLoadbalancers().ID
+}
+
 // UID returns the cluster UID.
 func (s *ClusterScope) UID() string {
 	return string(s.Cluster.UID)

@@ -22,6 +22,7 @@ const (
 	BareMetalWaitingForBootstrapDataReason         string = "WaitingForBootstrapData"
 	BareMetalServerPendingReason                   string = "ServerPending"
 	BareMetalVPCAttachRequestedReason              string = "VPCAttachRequested"
+	BareMetalWaitingForLoadBalancerReason          string = "WaitingForLoadBalancer"
 	BareMetalServerActiveReason                    string = "ServerActive"
 	BareMetalDeletingReason                        string = "Deleting"
 
