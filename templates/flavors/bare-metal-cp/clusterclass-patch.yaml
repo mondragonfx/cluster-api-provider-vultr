@@ -27,6 +27,9 @@
   path: /spec/patches/1
 - op: remove
   path: /spec/patches/0/definitions/1
+# CONTROL_PLANE_PLAN_ID (base variables[1]) is not used by an all bare metal class.
+- op: remove
+  path: /spec/variables/1
 - op: add
   path: /spec/variables/-
   value:

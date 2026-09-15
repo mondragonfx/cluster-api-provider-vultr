@@ -26,7 +26,6 @@ const (
 
 	BareMetalServerPendingReason          string = "ServerPending"
 	BareMetalServerActiveReason           string = "ServerActive"
-	BareMetalWaitingForServerActiveReason string = "WaitingForServerActive"
 	BareMetalVPCAttachRequestedReason     string = "VPCAttachRequested"
 	BareMetalVPCAttachedReason            string = "VPCAttached"
 	BareMetalWaitingForLoadBalancerReason string = "WaitingForLoadBalancer"

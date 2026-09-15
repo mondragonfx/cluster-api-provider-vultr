@@ -1,6 +1,9 @@
 - op: replace
   path: /spec/topology/classRef/name
   value: vultr-bare-metal-cp
+# CONTROL_PLANE_PLAN_ID (variables[1]) is not used by the all bare metal class.
+- op: remove
+  path: /spec/topology/variables/1
 - op: add
   path: /spec/topology/variables/-
   value:
