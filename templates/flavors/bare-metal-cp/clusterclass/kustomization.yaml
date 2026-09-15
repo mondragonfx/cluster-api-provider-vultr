@@ -1,0 +1,15 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# ClusterClass vultr-bare-metal-cp: the bare-metal class with the control plane
+# moved to bare metal. Published as clusterclass-vultr-bare-metal-cp.yaml.
+resources:
+- ../../bare-metal/clusterclass
+- vultr-bare-metal-control-plane-machine.yaml
+- vultr-bare-metal-control-plane.yaml
+patches:
+- path: clusterclass-patch.yaml
+  target:
+    group: cluster.x-k8s.io
+    version: v1beta2
+    kind: ClusterClass
+    name: vultr-bare-metal

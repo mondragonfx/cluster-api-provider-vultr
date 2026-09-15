@@ -106,6 +106,7 @@ const (
 	testRegion        = "ewr"
 	testPlan          = "test-bare-metal-plan"
 	testNameTag       = "name:" + testMachineName
+	testActive        = "active"
 )
 
 func newTestService(t *testing.T, bm *fakeBareMetalService) (*Service, *scope.BareMetalMachineScope) {
@@ -245,7 +246,7 @@ func TestCreateBareMetalServer(t *testing.T) {
 }
 
 func TestGetBareMetalServer(t *testing.T) {
-	bm := &fakeBareMetalService{servers: map[string]*govultr.BareMetalServer{"a": {ID: "a", Status: "active"}}}
+	bm := &fakeBareMetalService{servers: map[string]*govultr.BareMetalServer{"a": {ID: "a", Status: testActive}}}
 	svc, _ := newTestService(t, bm)
 
 	if s, err := svc.GetBareMetalServer(""); s != nil || err != nil {
