@@ -88,3 +88,8 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+const (
+	testRegion        = "ewr"
+	testBareMetalPlan = "test-bare-metal-plan"
+)

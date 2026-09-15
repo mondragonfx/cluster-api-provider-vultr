@@ -17,6 +17,8 @@ resources:
 - bases/infrastructure.cluster.x-k8s.io_vultrmachines.yaml
 - bases/infrastructure.cluster.x-k8s.io_vultrclustertemplates.yaml
 - bases/infrastructure.cluster.x-k8s.io_vultrmachinetemplates.yaml
+- bases/infrastructure.cluster.x-k8s.io_vultrbaremetalmachines.yaml
+- bases/infrastructure.cluster.x-k8s.io_vultrbaremetalmachinetemplates.yaml
 #+kubebuilder:scaffold:crdkustomizeresource
 
 # patches:

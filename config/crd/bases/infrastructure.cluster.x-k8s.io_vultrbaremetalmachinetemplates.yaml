@@ -1,0 +1,144 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.17.1
+  name: vultrbaremetalmachinetemplates.infrastructure.cluster.x-k8s.io
+spec:
+  group: infrastructure.cluster.x-k8s.io
+  names:
+    categories:
+    - cluster-api
+    kind: VultrBareMetalMachineTemplate
+    listKind: VultrBareMetalMachineTemplateList
+    plural: vultrbaremetalmachinetemplates
+    shortNames:
+    - vbmt
+    singular: vultrbaremetalmachinetemplate
+  scope: Namespaced
+  versions:
+  - name: v1beta2
+    schema:
+      openAPIV3Schema:
+        description: VultrBareMetalMachineTemplate is the Schema for the vultrbaremetalmachinetemplates
+          API.
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: VultrBareMetalMachineTemplateSpec defines the desired state
+              of VultrBareMetalMachineTemplate.
+            properties:
+              template:
+                description: VultrBareMetalMachineTemplateResource describes the data
+                  needed to create a VultrBareMetalMachine from a template.
+                properties:
+                  metadata:
+                    description: |-
+                      Standard object's metadata.
+                      More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#metadata
+                    minProperties: 1
+                    properties:
+                      annotations:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          annotations is an unstructured key value map stored with a resource that may be
+                          set by external tools to store and retrieve arbitrary metadata. They are not
+                          queryable and should be preserved when modifying objects.
+                          More info: http://kubernetes.io/docs/user-guide/annotations
+                        type: object
+                      labels:
+                        additionalProperties:
+                          type: string
+                        description: |-
+                          labels is a map of string keys and values that can be used to organize and categorize
+                          (scope and select) objects. May match selectors of replication controllers
+                          and services.
+                          More info: http://kubernetes.io/docs/user-guide/labels
+                        type: object
+                    type: object
+                  spec:
+                    description: Spec is the specification of the desired behavior
+                      of the machine.
+                    properties:
+                      additionalTags:
+                        description: AdditionalTags are added to the server on top
+                          of the tags the provider manages.
+                        items:
+                          type: string
+                        type: array
+                      enableIPv6:
+                        description: EnableIPv6 enables IPv6 on the server. Defaults
+                          to true.
+                        type: boolean
+                      mdiskMode:
+                        description: MdiskMode is the RAID configuration to use. When
+                          unset the Vultr default for the plan applies.
+                        enum:
+                        - raid1
+                        - jbod
+                        - none
+                        type: string
+                      osID:
+                        description: |-
+                          OSID is the Vultr operating system id to install (e.g. 2284 for Ubuntu 24.04).
+                          Kubernetes components are then installed by the bootstrap data at first boot.
+                        minimum: 1
+                        type: integer
+                      planID:
+                        description: |-
+                          PlanID is the Vultr bare metal plan id. Availability is per region;
+                          see GET /v2/plans-metal.
+                        minLength: 1
+                        type: string
+                      providerID:
+                        description: ProviderID is the unique identifier as specified
+                          by the cloud provider (vultr://<server-id>).
+                        type: string
+                      region:
+                        description: Region is the Vultr region the server is deployed
+                          in.
+                        minLength: 1
+                        type: string
+                      sshKey:
+                        description: SSHKey is the list of Vultr SSH key ids to install
+                          on the server.
+                        items:
+                          type: string
+                        type: array
+                      vpcID:
+                        description: |-
+                          VPCID is the id of the VPC to attach once the server is active. The plan must
+                          support VPC networking.
+                        type: string
+                    required:
+                    - osID
+                    - planID
+                    - region
+                    type: object
+                required:
+                - spec
+                type: object
+            required:
+            - template
+            type: object
+        type: object
+    served: true
+    storage: true

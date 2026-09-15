@@ -10,3 +10,22 @@ const (
 	LoadBalancerProvisioningFailed string = "LoadBalancerProvisioningFailed"
 	WaitingForIPReason             string = "WaitingForIP"
 )
+
+// VultrBareMetalMachine condition types and reasons.
+const (
+	BareMetalMachineReadyCondition string = "Ready"
+
+	BareMetalWaitingForClusterInfrastructureReason string = "WaitingForClusterInfrastructure"
+	BareMetalWaitingForBootstrapDataReason         string = "WaitingForBootstrapData"
+	BareMetalServerPendingReason                   string = "ServerPending"
+	BareMetalVPCAttachRequestedReason              string = "VPCAttachRequested"
+	BareMetalServerActiveReason                    string = "ServerActive"
+	BareMetalDeletingReason                        string = "Deleting"
+
+	// Terminal reasons: the machine will not be reconciled further and should be
+	// replaced (for example by a MachineHealthCheck).
+	BareMetalServerCreationFailedReason string = "ServerCreationFailed"
+	BareMetalServerNotFoundReason       string = "ServerNotFound"
+	BareMetalUnexpectedStatusReason     string = "UnexpectedStatus"
+	BareMetalVPCAttachFailedReason      string = "VPCAttachFailed"
+)
