@@ -57,6 +57,8 @@ const (
 	bareMetalVPCRequeue = 15 * time.Second
 	// bareMetalDeleteRequeue is how often deletion is retried while the server is still provisioning.
 	bareMetalDeleteRequeue = 30 * time.Second
+	// bareMetalLoadBalancerRequeue is how often a not yet active load balancer is re-checked.
+	bareMetalLoadBalancerRequeue = 15 * time.Second
 )
 
 // VultrBareMetalMachineReconciler reconciles a VultrBareMetalMachine object.
@@ -170,13 +172,6 @@ func (r *VultrBareMetalMachineReconciler) reconcileNormal(ctx context.Context, m
 		return reconcile.Result{}, nil
 	}
 
-	if machineScope.IsControlPlane() {
-		msg := "bare metal control plane machines are not supported; use a VultrMachineTemplate for the control plane"
-		r.Recorder.Eventf(bareMetalMachine, nil, corev1.EventTypeWarning, "ControlPlaneNotSupported", "Rejected", msg)
-		machineScope.SetTerminalFailure(v1beta2.BareMetalControlPlaneNotSupportedReason, msg)
-		return reconcile.Result{}, nil
-	}
-
 	svc := services.NewService(ctx, clusterScope)
 
 	server, err := r.findOrCreateServer(ctx, svc, machineScope)
@@ -272,6 +267,41 @@ func (r *VultrBareMetalMachineReconciler) reconcileNormal(ctx context.Context, m
 			ID:         info.ID,
 			IPAddress:  info.IPAddress,
 			MACAddress: info.MacAddress,
+		})
+	}
+
+	if machineScope.IsControlPlane() {
+		lbID := clusterScope.APIServerLoadbalancersRef().ResourceID
+		member, err := svc.EnsureLoadBalancerMember(lbID, server.ID)
+		if err != nil {
+			r.Recorder.Eventf(bareMetalMachine, nil, corev1.EventTypeWarning, "LoadBalancerMemberFailed", "Failed",
+				"Failed to add bare metal server %s to load balancer %s: %v", server.ID, lbID, err)
+			return reconcile.Result{}, err
+		}
+		if !member {
+			machineScope.Info("Waiting for the load balancer to become active", "load-balancer-id", lbID)
+			conditions.Set(bareMetalMachine, metav1.Condition{
+				Type:               v1beta2.BareMetalLoadBalancerMemberCondition,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1beta2.BareMetalWaitingForLoadBalancerReason,
+				Message:            "Load balancer is not active yet",
+				LastTransitionTime: metav1.Now(),
+			})
+			conditions.Set(bareMetalMachine, metav1.Condition{
+				Type:               v1beta2.BareMetalMachineReadyCondition,
+				Status:             metav1.ConditionFalse,
+				Reason:             v1beta2.BareMetalWaitingForLoadBalancerReason,
+				Message:            "Waiting for the load balancer to become active",
+				LastTransitionTime: metav1.Now(),
+			})
+			return reconcile.Result{RequeueAfter: bareMetalLoadBalancerRequeue}, nil
+		}
+		conditions.Set(bareMetalMachine, metav1.Condition{
+			Type:               v1beta2.BareMetalLoadBalancerMemberCondition,
+			Status:             metav1.ConditionTrue,
+			Reason:             v1beta2.BareMetalLoadBalancerMemberReason,
+			Message:            "Bare metal server is a load balancer backend",
+			LastTransitionTime: metav1.Now(),
 		})
 	}
 
@@ -385,6 +415,12 @@ func (r *VultrBareMetalMachineReconciler) reconcileDelete(ctx context.Context, m
 		r.Recorder.Eventf(bareMetalMachine, nil, corev1.EventTypeNormal, "NoServerFound", "NotFound", "No bare metal server to delete")
 		controllerutil.RemoveFinalizer(bareMetalMachine, v1beta2.BareMetalMachineFinalizer)
 		return reconcile.Result{}, nil
+	}
+
+	if machineScope.IsControlPlane() {
+		if err := svc.RemoveLoadBalancerMember(clusterScope.APIServerLoadbalancersRef().ResourceID, server.ID); err != nil {
+			return reconcile.Result{}, err
+		}
 	}
 
 	if err := svc.DeleteBareMetalServer(server.ID); err != nil {

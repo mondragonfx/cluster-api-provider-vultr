@@ -15,6 +15,7 @@ SUPPORTED_FLAVORS=(
     "vultr-csi"
     "full"
     "bare-metal"
+    "bare-metal-cp"
 )
 
 mkdir -p "${RELEASE_DIR}"
@@ -47,3 +48,4 @@ echo "    - cluster-template-vultr-ccm.yaml"
 echo "    - cluster-template-vultr-csi.yaml"
 echo "    - cluster-template-bare-metal.yaml"
 echo "    - cluster-template-bare-metal-standalone.yaml"
+echo "    - cluster-template-bare-metal-cp.yaml"

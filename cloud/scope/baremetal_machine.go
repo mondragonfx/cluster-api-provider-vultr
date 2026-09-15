@@ -35,11 +35,10 @@ import (
 // terminalBareMetalReasons are the Ready=False reasons after which the
 // controller stops reconciling a VultrBareMetalMachine.
 var terminalBareMetalReasons = map[string]struct{}{
-	infrav1.BareMetalServerCreationFailedReason:     {},
-	infrav1.BareMetalServerNotFoundReason:           {},
-	infrav1.BareMetalUnexpectedStatusReason:         {},
-	infrav1.BareMetalControlPlaneNotSupportedReason: {},
-	infrav1.BareMetalVPCAttachFailedReason:          {},
+	infrav1.BareMetalServerCreationFailedReason: {},
+	infrav1.BareMetalServerNotFoundReason:       {},
+	infrav1.BareMetalUnexpectedStatusReason:     {},
+	infrav1.BareMetalVPCAttachFailedReason:      {},
 }
 
 // BareMetalMachineScopeParams defines the input parameters used to create a new BareMetalMachineScope.
