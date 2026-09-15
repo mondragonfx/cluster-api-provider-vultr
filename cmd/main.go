@@ -131,6 +131,14 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "VultrMachine")
 		os.Exit(1)
 	}
+	if err = (&controllers.VultrBareMetalMachineReconciler{
+		Client:           mgr.GetClient(),
+		ReconcileTimeout: reconcileTimeout,
+		Recorder:         mgr.GetEventRecorder("vultrbaremetalmachine-controller"),
+	}).SetupWithManager(ctx, mgr, controller.Options{}); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "VultrBareMetalMachine")
+		os.Exit(1)
+	}
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

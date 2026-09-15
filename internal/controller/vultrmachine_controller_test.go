@@ -52,7 +52,7 @@ var _ = Describe("VultrMachine Controller", func() {
 						Namespace: testNamespace,
 					},
 					Spec: infrastructurev1beta2.VultrMachineSpec{
-						Region:   "ewr",
+						Region:   testRegion,
 						PlanID:   "vc2-2c-4gb",
 						Snapshot: "test-snapshot-id",
 					},

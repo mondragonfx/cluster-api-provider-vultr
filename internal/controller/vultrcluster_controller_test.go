@@ -55,7 +55,7 @@ var _ = Describe("VultrCluster Controller", func() {
 						Namespace: testNamespace,
 					},
 					Spec: infrastructurev1beta2.VultrClusterSpec{
-						Region: "ewr",
+						Region: testRegion,
 						ControlPlaneEndpoint: clusterv1.APIEndpoint{
 							Host: "127.0.0.1",
 							Port: 6443,
