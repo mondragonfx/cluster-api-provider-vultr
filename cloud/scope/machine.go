@@ -17,13 +17,10 @@ package scope
 
 import (
 	"context"
-	"fmt"
-	"strings"
 
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
@@ -118,17 +115,7 @@ func (m *MachineScope) AddFinalizer(ctx context.Context) error {
 
 // GetInstanceID returns the VultrMachine instance id by parsing Spec.ProviderID.
 func (m *MachineScope) GetInstanceID() string {
-	id := m.GetProviderID()
-
-	split := strings.Split(id, "://")
-	if len(split) != 2 { //nolint
-		return ""
-	}
-
-	if split[0] != "vultr" {
-		return ""
-	}
-	return split[1]
+	return ProviderIDToResourceID(m.GetProviderID())
 }
 
 // GetProviderID returns the VultrMachine providerID from the spec.
@@ -141,8 +128,7 @@ func (m *MachineScope) GetProviderID() string {
 
 // SetProviderID sets the VultrMachine providerID in spec from instance id.
 func (m *MachineScope) SetProviderID(instanceID string) {
-	pid := fmt.Sprintf("vultr://%s", instanceID)
-	m.VultrMachine.Spec.ProviderID = ptr.To(pid)
+	m.VultrMachine.Spec.ProviderID = ptr.To(ResourceIDToProviderID(instanceID))
 }
 
 // Name returns the VultrMachine name.
@@ -156,30 +142,7 @@ func (m *MachineScope) Namespace() string {
 }
 
 func (m *MachineScope) GetBootstrapData() (string, error) {
-	if m.Machine.Spec.Bootstrap.DataSecretName == nil {
-		m.Info("Bootstrap data secret reference is nil")
-		return "", errors.New("error retrieving bootstrap data: linked Machine's bootstrap.dataSecretName is nil")
-	}
-
-	secretName := *m.Machine.Spec.Bootstrap.DataSecretName
-	key := types.NamespacedName{Namespace: m.Namespace(), Name: secretName}
-	m.Info("Attempting to retrieve bootstrap data secret", "namespace", key.Namespace, "name", key.Name)
-
-	secret := &corev1.Secret{}
-	if err := m.client.Get(context.TODO(), key, secret); err != nil {
-		m.Error(err, "Failed to retrieve bootstrap data secret", "namespace", key.Namespace, "name", key.Name)
-		return "", errors.Wrapf(err, "failed to retrieve bootstrap data secret for VultrMachine %s/%s", m.Namespace(), m.Name())
-	}
-
-	value, ok := secret.Data["value"]
-	if !ok {
-		m.Info("Bootstrap data secret missing 'value' key")
-		return "", errors.New("error retrieving bootstrap data: secret value key is missing")
-	}
-
-	// Log the retrieved bootstrap data (truncated to avoid logging sensitive information)
-	m.Info("Successfully retrieved bootstrap data", "value", string(value)[:min(50, len(value))])
-	return string(value), nil
+	return GetBootstrapData(context.TODO(), m.client, m.Logger, m.Machine, m.Namespace())
 }
 
 // IsControlPlane returns true if the machine is a control plane.
@@ -189,10 +152,7 @@ func (m *MachineScope) IsControlPlane() bool {
 
 // Role returns the machine role from the labels.
 func (m *MachineScope) Role() string {
-	if util.IsControlPlaneMachine(m.Machine) {
-		return infrav1.APIServerRoleTagValue
-	}
-	return infrav1.NodeRoleTagValue
+	return MachineRole(m.Machine)
 }
 
 // GetInstanceStatus returns the VultrMachine instance status from the status.

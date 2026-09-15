@@ -57,6 +57,10 @@ func NewClusterScope(params ClusterScopeParams) (*ClusterScope, error) {
 		params.SSHKeys = vultrClient.SSHKey
 	}
 
+	if params.BareMetal == nil {
+		params.BareMetal = vultrClient.BareMetalServer
+	}
+
 	helper, err := patch.NewHelper(params.VultrCluster, params.Client)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to init patch helper")
