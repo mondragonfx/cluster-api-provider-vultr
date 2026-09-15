@@ -1,0 +1,51 @@
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: ${CLUSTER_NAME}
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+    cni: ${CLUSTER_NAME}-cilium
+    ccm: ${CLUSTER_NAME}-vultr
+spec:
+  topology:
+    classRef:
+      name: vultr-bare-metal
+    version: ${KUBERNETES_VERSION:=v1.32.4}
+    controlPlane:
+      replicas: ${CONTROL_PLANE_MACHINE_COUNT:=1}
+    workers:
+      machineDeployments:
+      - class: default-worker
+        name: md-0
+        replicas: ${WORKER_MACHINE_COUNT:=0}
+      - class: bare-metal-worker
+        name: bm-0
+        replicas: ${BARE_METAL_WORKER_MACHINE_COUNT:=1}
+    variables:
+    - name: REGION
+      value: ${REGION}
+    - name: CONTROL_PLANE_PLAN_ID
+      value: ${CONTROL_PLANE_PLAN_ID}
+    - name: WORKER_PLAN_ID
+      value: ${WORKER_PLAN_ID}
+    - name: BARE_METAL_PLAN_ID
+      value: ${BARE_METAL_PLAN_ID:=vbm-4c-32gb}
+    - name: BARE_METAL_OS_ID
+      value: ${BARE_METAL_OS_ID:=2284}
+    # Optional, default to "" in the ClusterClass. Networking: without a VPC every
+    # node talks over its public IP, which is what most bare metal plans support.
+    # On plans with VPC networking set both VPC_ID (control plane, load balancer)
+    # and BARE_METAL_VPC_ID so all nodes share the VPC; setting only one of them
+    # breaks pod networking between the two node types.
+    # - name: VPC_ID
+    #   value: <vpc id>
+    # - name: BARE_METAL_VPC_ID
+    #   value: <vpc id>
+    - name: MACHINE_IMAGE
+      value: ${MACHINE_IMAGE}
+    - name: SSH_KEY_ID
+      value: ${SSH_KEY_ID}
+    - name: CLUSTER_CIDR
+      value: ${CLUSTER_CIDR:=172.25.0.0/16}
+    - name: SERVICE_CIDR
+      value: ${SERVICE_CIDR:=172.26.0.0/16}

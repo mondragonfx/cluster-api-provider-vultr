@@ -1,0 +1,16 @@
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrBareMetalMachineTemplate
+metadata:
+  name: vultr-bare-metal-worker-machine
+  labels:
+    cluster.x-k8s.io/contract: v1beta2
+spec:
+  template:
+    spec:
+      # Placeholders: the ClusterClass patches replace these from the
+      # REGION, BARE_METAL_PLAN_ID, BARE_METAL_OS_ID,
+      # VPC_ID and SSH_KEY_ID variables.
+      region: ewr
+      planID: vbm-4c-32gb
+      osID: 2284
+      sshKey: []

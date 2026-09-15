@@ -14,6 +14,7 @@ SUPPORTED_FLAVORS=(
     "vultr-ccm"
     "vultr-csi"
     "full"
+    "bare-metal"
 )
 
 mkdir -p "${RELEASE_DIR}"
@@ -23,6 +24,7 @@ cp "${REPO_ROOT}/templates/base/clusterclass.yaml" "${RELEASE_DIR}/clusterclass-
 
 echo "==> Copying standalone cluster template..."
 cp "${REPO_ROOT}/templates/cluster-template.yaml" "${RELEASE_DIR}/cluster-template.yaml"
+cp "${REPO_ROOT}/templates/cluster-template-bare-metal-standalone.yaml" "${RELEASE_DIR}/cluster-template-bare-metal-standalone.yaml"
 
 echo "==> Building infrastructure components..."
 "${KUSTOMIZE}" build "${REPO_ROOT}/config/default" > "${RELEASE_DIR}/infrastructure-components.yaml"
@@ -43,3 +45,5 @@ echo "    - cluster-template-full.yaml"
 echo "    - cluster-template-cilium.yaml"
 echo "    - cluster-template-vultr-ccm.yaml"
 echo "    - cluster-template-vultr-csi.yaml"
+echo "    - cluster-template-bare-metal.yaml"
+echo "    - cluster-template-bare-metal-standalone.yaml"
