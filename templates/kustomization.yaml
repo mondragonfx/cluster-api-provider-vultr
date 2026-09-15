@@ -7,3 +7,4 @@ resources:
 - flavors/vultr-ccm
 - flavors/vultr-csi
 - flavors/full
+- flavors/bare-metal

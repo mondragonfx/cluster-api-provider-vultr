@@ -32,18 +32,21 @@ spec:
           kind: VultrMachineTemplate
           name: vultr-default-worker-machine
   variables:
-  - name: REGION
-    required: true
-    schema:
-      openAPIV3Schema:
-        type: string
-        default: ewr
+  # Slot 0 of variables and of patches is the control plane. Flavors with a
+  # different control plane kind (bare-metal-cp) replace that slot; everything
+  # else is appended, so keep the control plane entries first.
   - name: CONTROL_PLANE_PLAN_ID
     required: true
     schema:
       openAPIV3Schema:
         type: string
         default: vc2-8c-32gb
+  - name: REGION
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+        default: ewr
   - name: WORKER_PLAN_ID
     required: true
     schema:
@@ -93,6 +96,36 @@ spec:
         type: string
         default: 172.26.0.0/16
   patches:
+  # Everything the control plane machine template gets, in one patch (see the
+  # note on slot 0 above).
+  - name: CONTROL_PLANE
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/region
+        valueFrom:
+          variable: REGION
+      - op: add
+        path: /spec/template/spec/planID
+        valueFrom:
+          variable: CONTROL_PLANE_PLAN_ID
+      - op: add
+        path: /spec/template/spec/vpc_id
+        valueFrom:
+          variable: VPC_ID
+      - op: add
+        path: /spec/template/spec/snapshot_id
+        valueFrom:
+          variable: MACHINE_IMAGE
+      - op: add
+        path: /spec/template/spec/sshKey/-
+        valueFrom:
+          variable: SSH_KEY_ID
   - name: REGION
     definitions:
     - selector:
@@ -100,16 +133,6 @@ spec:
         kind: VultrClusterTemplate
         matchResources:
           infrastructureCluster: true
-      jsonPatches:
-      - op: add
-        path: /spec/template/spec/region
-        valueFrom:
-          variable: REGION
-    - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
-        kind: VultrMachineTemplate
-        matchResources:
-          controlPlane: true
       jsonPatches:
       - op: add
         path: /spec/template/spec/region
@@ -127,18 +150,6 @@ spec:
         path: /spec/template/spec/region
         valueFrom:
           variable: REGION
-  - name: CONTROL_PLANE_PLAN_ID
-    definitions:
-    - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
-        kind: VultrMachineTemplate
-        matchResources:
-          controlPlane: true
-      jsonPatches:
-      - op: add
-        path: /spec/template/spec/planID
-        valueFrom:
-          variable: CONTROL_PLANE_PLAN_ID
   - name: WORKER_PLAN_ID
     definitions:
     - selector:
@@ -169,16 +180,6 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
         kind: VultrMachineTemplate
         matchResources:
-          controlPlane: true
-      jsonPatches:
-      - op: add
-        path: /spec/template/spec/vpc_id
-        valueFrom:
-          variable: VPC_ID
-    - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
-        kind: VultrMachineTemplate
-        matchResources:
           machineDeploymentClass:
             names:
             - default-worker
@@ -193,16 +194,6 @@ spec:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
         kind: VultrMachineTemplate
         matchResources:
-          controlPlane: true
-      jsonPatches:
-      - op: add
-        path: /spec/template/spec/snapshot_id
-        valueFrom:
-          variable: MACHINE_IMAGE
-    - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
-        kind: VultrMachineTemplate
-        matchResources:
           machineDeploymentClass:
             names:
             - default-worker
@@ -213,16 +204,6 @@ spec:
           variable: MACHINE_IMAGE
   - name: SSH_KEY_ID
     definitions:
-    - selector:
-        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
-        kind: VultrMachineTemplate
-        matchResources:
-          controlPlane: true
-      jsonPatches:
-      - op: add
-        path: /spec/template/spec/sshKey/-
-        valueFrom:
-          variable: SSH_KEY_ID
     - selector:
         apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
         kind: VultrMachineTemplate
