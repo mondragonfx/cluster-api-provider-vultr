@@ -4,6 +4,9 @@ package v1beta2
 const (
 	VultrClusterReadyCondition string = "Ready"
 	LoadBalancerReadyCondition string = "LoadBalancerReady"
+	// MachineReadyCondition summarizes the state of a VultrMachine. Cluster API mirrors it
+	// into the owning Machine's InfrastructureReady condition (v1beta2 contract).
+	MachineReadyCondition string = "Ready"
 
 	ErrorFetchingLBReason          string = "ErrorFetchingLoadBalancer"
 	ErrorCreatingLBReason          string = "ErrorCreatingLoadBalancer"
