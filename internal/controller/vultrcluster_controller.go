@@ -152,6 +152,12 @@ func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 	// If the VultrCluster doesn't have finalizer, add it.
 	controllerutil.AddFinalizer(vultrCluster, infrav1.ClusterFinalizer)
 
+	// An externally managed control plane supplies its own endpoint, so there is no
+	// load balancer to create and nothing to wait on but the endpoint itself.
+	if !clusterScope.IsLoadBalancerEnabled() {
+		return r.reconcileExternalControlPlaneEndpoint(clusterScope)
+	}
+
 	vlbService := services.NewService(ctx, clusterScope)
 	apiServerLoadbalancer := clusterScope.APIServerLoadbalancers()
 	apiServerLoadbalancer.ApplyDefaults()
@@ -239,9 +245,58 @@ func (r *VultrClusterReconciler) reconcileNormal(ctx context.Context, clusterSco
 	return ctrl.Result{}, nil
 }
 
+// reconcileExternalControlPlaneEndpoint marks the cluster infrastructure ready once
+// the externally managed control plane has published spec.controlPlaneEndpoint. It
+// requeues rather than failing while the endpoint is empty, since the control plane
+// provider only fills it in when its own endpoint becomes reachable.
+func (r *VultrClusterReconciler) reconcileExternalControlPlaneEndpoint(clusterScope *scope.ClusterScope) (ctrl.Result, error) {
+	vultrCluster := clusterScope.VultrCluster
+	endpoint := vultrCluster.Spec.ControlPlaneEndpoint
+
+	if endpoint.Host == "" || endpoint.Port == 0 {
+		clusterScope.Info("Waiting for the externally managed control plane endpoint")
+		vultrCluster.Status.Initialization.Provisioned = ptr.To(false)
+		conditions.Set(vultrCluster, metav1.Condition{
+			Type:               infrav1.LoadBalancerReadyCondition,
+			Status:             metav1.ConditionFalse,
+			Reason:             infrav1.WaitingForExternalEndpointReason,
+			Message:            "Waiting for the externally managed control plane to publish its endpoint",
+			LastTransitionTime: metav1.Now(),
+		})
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+	}
+
+	conditions.Set(vultrCluster, metav1.Condition{
+		Type:               infrav1.LoadBalancerReadyCondition,
+		Status:             metav1.ConditionTrue,
+		Reason:             "ExternalControlPlaneEndpoint",
+		Message:            fmt.Sprintf("Using the externally managed control plane endpoint - %s", endpoint.Host),
+		LastTransitionTime: metav1.Now(),
+	})
+	conditions.Set(vultrCluster, metav1.Condition{
+		Type:               infrav1.VultrClusterReadyCondition,
+		Status:             metav1.ConditionTrue,
+		Reason:             "ClusterReady",
+		Message:            "VultrCluster has ready status",
+		LastTransitionTime: metav1.Now(),
+	})
+
+	clusterScope.SetReady()
+	vultrCluster.Status.Ready = true
+	vultrCluster.Status.Initialization.Provisioned = ptr.To(true)
+
+	return ctrl.Result{}, nil
+}
+
 func (r *VultrClusterReconciler) reconcileDelete(ctx context.Context, clusterScope *scope.ClusterScope) (reconcile.Result, error) { //nolint: unparam
 	clusterScope.Info("Reconciling delete VultrCluster")
 	vultrcluster := clusterScope.VultrCluster
+
+	// Nothing was created when the control plane is externally managed.
+	if !clusterScope.IsLoadBalancerEnabled() {
+		controllerutil.RemoveFinalizer(vultrcluster, infrav1.ClusterFinalizer)
+		return reconcile.Result{}, nil
+	}
 
 	vlbservice := services.NewService(ctx, clusterScope)
 	apiServerLoadbalancerRef := clusterScope.APIServerLoadbalancersRef()
