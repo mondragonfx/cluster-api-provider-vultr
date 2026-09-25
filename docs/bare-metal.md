@@ -1,111 +1,82 @@
-# Bare metal worker nodes
+# Bare metal nodes
 
-CAPVULTR can run worker nodes on [Vultr Bare Metal](https://www.vultr.com/products/bare-metal/)
-servers through the `VultrBareMetalMachine` / `VultrBareMetalMachineTemplate` kinds.
-Both worker and control plane machines can run on bare metal. Control plane servers are
-registered as backends of the cluster's Vultr load balancer like cloud compute control plane
-instances; the `bare-metal-cp` flavor runs the whole cluster on bare metal.
+Nodes can run on [Vultr Bare Metal](https://www.vultr.com/products/bare-metal/) servers through
+the `VultrBareMetalMachine` kind. Two flavors use it, and they differ only in where the control
+plane runs:
 
-## How it works
+| Flavor | Control plane nodes | Worker nodes |
+|---|---|---|
+| `bare-metal` | cloud compute | bare metal |
+| `bare-metal-cp` | bare metal | bare metal |
 
-A `VultrBareMetalMachine` creates a bare metal server from a stock Vultr operating system
-(`osID`, for example `2284` = Ubuntu 24.04) with the Cluster API bootstrap data as cloud-init
-user data; Kubernetes is installed at first boot by the bootstrap configuration (see below).
+The bare metal workers are the pool `bm-0`. Both also define a cloud compute worker pool `md-0`, at
+0 replicas unless you set `WORKER_MACHINE_COUNT`.
 
-Once the server is `active` the controller optionally attaches a VPC (`vpcID`), records the
-addresses and marks the machine ready. Bare metal provisioning takes a few minutes longer
-than a cloud instance (roughly 5–15 minutes depending on the plan), plus the package
-installation.
+`bare-metal-standalone` is the same layout as `bare-metal` without ClusterClass.
 
-## Prerequisites
+## Creating a cluster
 
-- Bare metal must be enabled on your Vultr account.
-- Pick a plan and region from `GET /v2/plans-metal` (`vultr-cli plans metal`). Bare metal plans
-  are available in far fewer regions than cloud plans, and a plan can be temporarily out of
-  stock in a region.
-- VPC networking is only supported on some bare metal plans (for example `vbm-6c-32gb-amd`,
-  `vbm-8c-132gb` and `vbm-24c-256gb-amd` accept a VPC, `vbm-4c-32gb` does not). The `bare-metal` flavor therefore
-  runs **without a VPC by default**: every node (control plane and bare metal) uses its public
-  IP and Cilium tunnels over it. On plans that support VPC networking you can set both `VPC_ID`
-  (control plane and load balancer) and `BARE_METAL_VPC_ID` (bare metal workers) so all nodes
-  share the VPC. Do not set only one of them: Cilium would try to reach the control plane on its
-  VPC address from nodes that are not in the VPC. Setting `BARE_METAL_VPC_ID` on a plan without
-  VPC support fails the machine with the `VPCAttachFailed` reason
-  (`Plan does not support VPC networking`).
-- Vultr's stock operating system images ship with `ufw` enabled (SSH only). The bootstrap data
-  disables it so the kubelet, Cilium and pod traffic are reachable; when bringing your own
-  bootstrap configuration, make sure the firewall allows cluster traffic.
-- The [Vultr cloud controller manager](https://github.com/vultr/vultr-cloud-controller-manager)
-  must run in the workload cluster. It looks bare metal nodes up through the bare metal API
-  **only** when the node carries the label `vultr.com/baremetal=true`; the templates below set
-  it through the kubelet `--node-labels` argument. Without the label the CCM treats the node as
-  a missing cloud instance and removes it.
-
-## Tested plans
-
-The provider does not depend on the plan; the operating system does. Verified so far with
-Ubuntu 24.04: `vbm-4c-32gb` (Intel,
-BIOS boot, no VPC), `vbm-6c-32gb-amd`, `vbm-8c-132gb` and `vbm-24c-256gb-amd` (UEFI boot, two
-NICs, NVMe disks, VPC capable). Plans can be temporarily out of stock in a region even though
-`/v2/plans-metal` lists the region; the machine then fails with `ServerCreationFailed`.
-
-## Templates
-
-`cluster-template-bare-metal.yaml` (`--flavor bare-metal`) is a ClusterClass based template
-with a cloud compute control plane, an optional cloud compute worker pool (`md-0`, default 0
-replicas) and a bare metal worker pool (`bm-0`). It includes Cilium (through the Cluster API
-Helm addon provider) and the Vultr CCM. The management cluster needs
-`CLUSTER_TOPOLOGY=true` and `--addon helm` when running `clusterctl init`.
+Both ClusterClass flavors need `CLUSTER_TOPOLOGY=true` and `clusterctl init --addon helm`, since
+they ship Cilium and the Vultr CCM.
 
 ```sh
-export CLUSTER_NAME=bm-demo
-export KUBERNETES_VERSION=v1.34.3
-export REGION=lax
-export CONTROL_PLANE_PLAN_ID=vc2-2c-4gb
-export WORKER_PLAN_ID=vc2-2c-4gb
-export MACHINE_IMAGE=<snapshot id of a Cluster API image for the control plane>
-export SSH_KEY_ID=<vultr ssh key id>
-export BARE_METAL_PLAN_ID=vbm-4c-32gb
-export BARE_METAL_OS_ID=2284
-export BARE_METAL_WORKER_MACHINE_COUNT=1
-
+source scripts/capvultr-config-example      # after filling in the placeholders
 clusterctl generate cluster ${CLUSTER_NAME} --flavor bare-metal | kubectl apply -f -
 ```
 
-To put the cluster on a VPC, add the `VPC_ID` and `BARE_METAL_VPC_ID` variables to the
-generated Cluster's `spec.topology.variables` (both default to empty in the ClusterClass).
+`BARE_METAL_PLAN_ID` sets the worker plan, `BARE_METAL_CONTROL_PLANE_PLAN_ID` the control plane
+plan for `bare-metal-cp`. Neither has a default, so `clusterctl` names them if they are unset.
 
-`cluster-template-bare-metal-cp.yaml` (`--flavor bare-metal-cp`) runs the control plane on bare
-metal as well (ClusterClass `vultr-bare-metal-cp`): the control plane servers use
-`BARE_METAL_CONTROL_PLANE_PLAN_ID` (default `vbm-4c-32gb`), the same operating system as
-the workers, and are registered as backends of the Vultr load balancer.
-Keep in mind that a bare metal control plane takes several minutes longer to provision or
-replace than a cloud compute one.
+Expect six to eight minutes per server. Control planes come up one at a time, so three of them
+take about half an hour.
 
-`cluster-template-bare-metal-standalone.yaml` is the same layout without ClusterClass
-(plain `MachineDeployment` / `KubeadmConfigTemplate` / `VultrBareMetalMachineTemplate`).
+## Choosing a plan
 
-The `KubeadmConfigTemplate` ships `/usr/local/bin/install-k8s.sh`, which
-installs containerd and the `kubelet`/`kubeadm`/`kubectl` packages for the cluster's
-Kubernetes version from `pkgs.k8s.io` before `kubeadm join` runs. Only Ubuntu 24.04 is
-covered by that script; adapt it for other operating systems.
+Plans and their regions come from `GET /v2/plans-metal`. Bare metal is in far fewer regions than
+cloud compute, and a plan can be out of stock in a region the API lists, which fails the machine
+with `ServerCreationFailed`.
 
-## Watching a bare metal machine
+VPC support is per plan. Verified with Ubuntu 24.04 on `vbm-4c-32gb` (no VPC) and on
+`vbm-6c-32gb-amd`, `vbm-8c-132gb` and `vbm-24c-256gb-amd` (VPC capable).
+
+## Networking
+
+`VPC_ID` applies to the whole cluster. Set it and every node, cloud and bare metal, joins that VPC
+and the CNI uses the private addresses. Leave it empty and every node uses its public IP.
+
+Prefer a VPC, so etcd and the kubelet listen privately. Requesting one on a plan without support
+fails the machine with `VPCAttachFailed`. Without a VPC, restrict the cluster ports with Vultr
+firewall groups.
+
+## Bootstrap
+
+Kubernetes is installed at first boot rather than baked into an image. The bootstrap runs
+`/usr/local/bin/install-k8s.sh`, which covers Ubuntu 24.04 only, disables the `ufw` default that
+would block cluster traffic, and labels the node `vultr.com/baremetal=true` so the
+[Vultr CCM](https://github.com/vultr/vultr-cloud-controller-manager) looks it up through the bare
+metal API. Replace the bootstrap config and all three are yours to reproduce; without the label
+the CCM deletes the node as a missing cloud instance.
+
+## Checking on a machine
 
 ```sh
-kubectl get vbm            # short name for vultrbaremetalmachines
+kubectl get vbm            # short for vultrbaremetalmachines
 kubectl describe vbm <name>
 ```
 
-Conditions:
+One `Ready` condition, mirrored into the Machine's `InfrastructureReady`. The reason is the phase:
 
-| Condition      | Meaning                                                                    |
-|----------------|----------------------------------------------------------------------------|
-| `Ready`        | Summary; mirrored into the Machine's `InfrastructureReady`. `False` with a terminal reason (`ServerCreationFailed`, `ServerNotFound`, `UnexpectedStatus`, `VPCAttachFailed`) means the controller stopped reconciling the machine; replace the Machine (for example through a MachineHealthCheck or by scaling the MachineDeployment). |
-| `ServerActive` | The Vultr server reports `active`.                                          |
-| `VPCAttached`  | Only when `vpcID` is set: the VPC shows up on the server.                   |
-| `LoadBalancerMember` | Control plane machines only: the server is a backend of the API server load balancer. |
+| Reason | Meaning |
+|---|---|
+| `WaitingForClusterInfrastructure` | load balancer and VPC not ready |
+| `WaitingForBootstrapData` | no cloud-init data yet |
+| `ServerPending` | provisioning at Vultr |
+| `VPCAttachRequested` | attach requested, not visible yet |
+| `WaitingForLoadBalancer` | control plane waiting to become a backend |
+| `ServerActive` | ready |
+| `Deleting` | being deleted |
 
-Servers are tagged like cloud instances (`sigs-k8s-io:capvultr:<cluster>...`, `name:<machine>`);
-the controller uses the tags to adopt a server whose id was not recorded yet, so a failed
-reconcile never leaves an orphaned server behind.
+`ServerCreationFailed`, `ServerNotFound`, `UnexpectedStatus` and `VPCAttachFailed` are terminal.
+The controller stops and does not recreate the server; replace the Machine instead. A `Paused`
+condition appears when the Cluster is paused or the machine has the `cluster.x-k8s.io/paused`
+annotation.
