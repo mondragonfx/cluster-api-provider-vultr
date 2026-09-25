@@ -10,13 +10,13 @@ spec:
       ccm: ${CLUSTER_NAME}-vultr
   resources:
   - kind: ConfigMap
-    name: vultr-ccm-manifests
+    name: vultr-${CLUSTER_NAME}-ccm-manifests
   strategy: Reconcile
 ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: vultr-ccm-manifests
+  name: vultr-${CLUSTER_NAME}-ccm-manifests
 data:
   manifests: |
     apiVersion: v1
