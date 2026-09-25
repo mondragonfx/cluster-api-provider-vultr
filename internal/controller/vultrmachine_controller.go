@@ -28,8 +28,8 @@ import (
 	"k8s.io/client-go/tools/events"
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 	"sigs.k8s.io/cluster-api/util"
-	"sigs.k8s.io/cluster-api/util/annotations"
 	conditions "sigs.k8s.io/cluster-api/util/conditions"
+	"sigs.k8s.io/cluster-api/util/paused"
 	"sigs.k8s.io/cluster-api/util/predicates"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/builder"
@@ -78,6 +78,8 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return reconcile.Result{}, err
 	}
 
+	deleting := !vultrMachine.DeletionTimestamp.IsZero()
+
 	// Fetch the Machine.
 	machine, err := util.GetOwnerMachine(ctx, r.Client, vultrMachine.ObjectMeta)
 	if err != nil {
@@ -95,20 +97,21 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		return ctrl.Result{}, nil
 	}
 
+	// Surface and honour pausing of the Cluster or of the VultrMachine itself.
+	if isPaused, requeue, err := paused.EnsurePausedCondition(ctx, r.Client, cluster, vultrMachine); err != nil || isPaused || requeue {
+		return ctrl.Result{}, err
+	}
+
 	// Fetch the VultrCluster.
 	vultrCluster := &v1beta2.VultrCluster{}
 	vultrClusterName := client.ObjectKey{
 		Namespace: vultrMachine.Namespace,
 		Name:      cluster.Spec.InfrastructureRef.Name,
 	}
-	if err := r.Get(ctx, vultrClusterName, vultrCluster); err != nil && !scope.MachineOnly() {
+	// A missing VultrCluster does not block deletion: deleting the instance only
+	// needs the API client.
+	if err := r.Get(ctx, vultrClusterName, vultrCluster); err != nil && !scope.MachineOnly() && !deleting {
 		log.Info("VultrCluster is not available yet.")
-		return ctrl.Result{}, nil
-	}
-
-	// Return early if the object or Cluster is paused.
-	if annotations.IsPaused(cluster, vultrCluster) && !scope.MachineOnly() {
-		log.Info("VultrMachine or linked Cluster is marked as paused. Won't reconcile")
 		return ctrl.Result{}, nil
 	}
 
@@ -143,7 +146,7 @@ func (r *VultrMachineReconciler) Reconcile(ctx context.Context, req ctrl.Request
 		}
 	}()
 
-	if !vultrMachine.DeletionTimestamp.IsZero() {
+	if deleting {
 		return r.reconcileDelete(ctx, machineScope, clusterScope)
 	}
 
@@ -156,7 +159,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 	vultrMachine := machineScope.VultrMachine
 
 	// Early exit if machine infrastructure is in a error state
-	if conditions.IsFalse(vultrMachine, clusterv1.InfrastructureReadyCondition) {
+	if conditions.IsFalse(vultrMachine, v1beta2.MachineReadyCondition) {
 		machineScope.Info("Machine infrastructure has failed, skipping reconciliation")
 		return reconcile.Result{}, nil
 	}
@@ -195,7 +198,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 			r.Recorder.Eventf(vultrMachine, nil, corev1.EventTypeWarning, "InstanceCreatingError", "CreateFailed",
 				"Failed to create instance for VultrMachine %s/%s: %v", vultrMachine.Namespace, vultrMachine.Name, err)
 			conditions.Set(vultrMachine, metav1.Condition{
-				Type:               clusterv1.InfrastructureReadyCondition,
+				Type:               v1beta2.MachineReadyCondition,
 				Status:             metav1.ConditionFalse,
 				Reason:             "InstanceCreationFailed",
 				Message:            err.Error(),
@@ -237,7 +240,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		r.Recorder.Eventf(vultrMachine, nil, corev1.EventTypeWarning, "GetInstanceAddressFailed", "GetFailed",
 			"Failed to get address for instance %s: %v", instance.ID, err)
 		conditions.Set(vultrMachine, metav1.Condition{
-			Type:               clusterv1.InfrastructureReadyCondition,
+			Type:               v1beta2.MachineReadyCondition,
 			Status:             metav1.ConditionFalse,
 			Reason:             "FailedToGetInstanceAddress",
 			Message:            err.Error(),
@@ -254,7 +257,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 	case v1beta2.SubscriptionStatusPending:
 		machineScope.Info("Machine instance is pending", "instance-id", machineScope.GetInstanceID())
 		conditions.Set(vultrMachine, metav1.Condition{
-			Type:               clusterv1.InfrastructureReadyCondition,
+			Type:               v1beta2.MachineReadyCondition,
 			Status:             metav1.ConditionUnknown,
 			Reason:             "InstancePending",
 			Message:            "Instance is provisioning",
@@ -266,7 +269,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 	case v1beta2.SubscriptionStatusActive:
 		machineScope.Info("Machine instance is active", "instance-id", machineScope.GetInstanceID())
 		conditions.Set(vultrMachine, metav1.Condition{
-			Type:               clusterv1.InfrastructureReadyCondition,
+			Type:               v1beta2.MachineReadyCondition,
 			Status:             metav1.ConditionTrue,
 			Reason:             "InstanceActive",
 			Message:            "Instance is active",
@@ -280,7 +283,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 		errMsg := fmt.Sprintf("Instance status %q is unexpected", instance.Status)
 		machineScope.Info("Machine instance status is unexpected", "instance-id", machineScope.GetInstanceID(), "status", instance.Status)
 		conditions.Set(vultrMachine, metav1.Condition{
-			Type:               clusterv1.InfrastructureReadyCondition,
+			Type:               v1beta2.MachineReadyCondition,
 			Status:             metav1.ConditionFalse,
 			Reason:             "UnexpectedStatus",
 			Message:            errMsg,
@@ -321,7 +324,6 @@ func (r *VultrMachineReconciler) SetupWithManager(ctx context.Context, mgr ctrl.
 
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&v1beta2.VultrMachine{}).
-		WithEventFilter(predicates.ResourceNotPaused(mgr.GetScheme(), ctrl.LoggerFrom(ctx))).
 		Watches(
 			&clusterv1.Machine{},
 			handler.EnqueueRequestsFromMapFunc(util.MachineToInfrastructureMapFunc(v1beta2.GroupVersion.WithKind("VultrMachine"))),

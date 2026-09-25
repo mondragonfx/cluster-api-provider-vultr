@@ -4,6 +4,7 @@ package v1beta2
 const (
 	VultrClusterReadyCondition string = "Ready"
 	LoadBalancerReadyCondition string = "LoadBalancerReady"
+	MachineReadyCondition      string = "Ready"
 
 	ErrorFetchingLBReason          string = "ErrorFetchingLoadBalancer"
 	ErrorCreatingLBReason          string = "ErrorCreatingLoadBalancer"
