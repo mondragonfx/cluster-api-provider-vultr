@@ -1,0 +1,113 @@
+---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: Cluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  clusterNetwork:
+    pods:
+      cidrBlocks:
+        - 172.25.0.0/16
+    services:
+      cidrBlocks:
+        - 172.26.0.0/16
+  infrastructureRef:
+    apiGroup: infrastructure.cluster.x-k8s.io
+    kind: VultrCluster
+    name: "${CLUSTER_NAME}"
+  controlPlaneRef:
+    apiGroup: controlplane.cluster.x-k8s.io
+    kind: KamajiControlPlane
+    name: "${CLUSTER_NAME}"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrCluster
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  region: "${REGION}"
+  network:
+    apiServerLoadbalancers:
+      # Kamaji serves the API endpoint, so the provider must not create a Vultr
+      # load balancer. It waits for spec.controlPlaneEndpoint instead.
+      enabled: false
+---
+apiVersion: controlplane.cluster.x-k8s.io/v1alpha2
+kind: KamajiControlPlane
+metadata:
+  name: "${CLUSTER_NAME}"
+spec:
+  dataStoreName: "${KAMAJI_DATASTORE:=default}"
+  addons:
+    coreDNS: {}
+    konnectivity: {}
+    kubeProxy: {}
+  kubelet:
+    cgroupfs: systemd
+    # Worker hostnames do not resolve from the management cluster, so prefer the
+    # addresses the provider reports.
+    preferredAddressTypes:
+      - ExternalIP
+      - InternalIP
+      - Hostname
+  network:
+    # Workers reach the control plane from Vultr, so the service must be reachable
+    # from outside the management cluster.
+    serviceType: LoadBalancer
+  replicas: ${CONTROL_PLANE_MACHINE_COUNT}
+  version: "${KUBERNETES_VERSION}"
+---
+apiVersion: cluster.x-k8s.io/v1beta2
+kind: MachineDeployment
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+spec:
+  clusterName: "${CLUSTER_NAME}"
+  replicas: ${WORKER_MACHINE_COUNT}
+  template:
+    spec:
+      clusterName: "${CLUSTER_NAME}"
+      version: "${KUBERNETES_VERSION}"
+      bootstrap:
+        configRef:
+          apiGroup: bootstrap.cluster.x-k8s.io
+          kind: KubeadmConfigTemplate
+          name: "${CLUSTER_NAME}-md-0"
+      infrastructureRef:
+        apiGroup: infrastructure.cluster.x-k8s.io
+        kind: VultrMachineTemplate
+        name: "${CLUSTER_NAME}-md-0"
+---
+apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+kind: VultrMachineTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+spec:
+  template:
+    spec:
+      region: "${REGION}"
+      planID: "${WORKER_PLAN_ID}"
+      vpc_id: "${VPC_ID}"
+      snapshot_id: "${MACHINE_IMAGE}"
+      sshKey:
+        - "${SSH_KEY_ID}"
+---
+apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+kind: KubeadmConfigTemplate
+metadata:
+  name: "${CLUSTER_NAME}-md-0"
+spec:
+  template:
+    spec:
+      joinConfiguration:
+        nodeRegistration:
+          criSocket: unix:///var/run/containerd/containerd.sock
+          kubeletExtraArgs:
+            - name: cloud-provider
+              value: external
+            - name: cgroup-driver
+              value: systemd
+            - name: eviction-hard
+              value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+            - name: provider-id
+              value: "vultr://{{ ds.meta_data['instance_id'] }}"

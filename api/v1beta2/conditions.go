@@ -10,6 +10,9 @@ const (
 	ErrorCreatingLBReason          string = "ErrorCreatingLoadBalancer"
 	LoadBalancerProvisioningFailed string = "LoadBalancerProvisioningFailed"
 	WaitingForIPReason             string = "WaitingForIP"
+	// WaitingForExternalEndpointReason is set while the load balancer is disabled
+	// and the externally managed control plane has not published its endpoint yet.
+	WaitingForExternalEndpointReason string = "WaitingForExternalControlPlaneEndpoint"
 )
 
 // VultrBareMetalMachine condition types and reasons.

@@ -78,6 +78,14 @@ type NetworkSpec struct {
 
 // VultrLoadBalancer represents the structure of a Vultr load balancer
 type VultrLoadBalancer struct {
+	// Enabled controls whether the provider creates and manages a Vultr load
+	// balancer for the API server. It defaults to true. Set it to false when the
+	// control plane is externally managed and supplies its own endpoint, for
+	// example a hosted control plane provider; the provider then waits for
+	// spec.controlPlaneEndpoint to be set instead of creating a load balancer.
+	// +optional
+	Enabled *bool `json:"enabled,omitempty"`
+
 	ID              string           `json:"id,omitempty"`
 	DateCreated     string           `json:"date_created,omitempty"`
 	Region          string           `json:"region,omitempty"`

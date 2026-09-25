@@ -9,6 +9,7 @@ import (
 	clusterv1 "sigs.k8s.io/cluster-api/api/core/v1beta2"
 
 	"github.com/go-logr/logr"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/cluster-api/util/patch"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -107,6 +108,13 @@ func (s *ClusterScope) AddFinalizer(ctx context.Context) error {
 // APIServerLoadbalancers get the VultrCluster Spec Network APIServerLoadbalancers.
 func (s *ClusterScope) APIServerLoadbalancers() *infrav1.VultrLoadBalancer {
 	return &s.VultrCluster.Spec.Network.APIServerLoadbalancers
+}
+
+// IsLoadBalancerEnabled reports whether the provider manages the API server load
+// balancer. It is false when the control plane is externally managed and provides
+// its own endpoint.
+func (s *ClusterScope) IsLoadBalancerEnabled() bool {
+	return ptr.Deref(s.APIServerLoadbalancers().Enabled, true)
 }
 
 // APIServerLoadbalancersRef get the VultrCluster status Network APIServerLoadbalancersRef.
