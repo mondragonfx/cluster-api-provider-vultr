@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/base64"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/labstack/gommon/log"
@@ -61,18 +60,20 @@ func (s *Service) CreateInstance(scope *scope.MachineScope) (*govultr.Instance, 
 
 	s.scope.V(2).Info("Retrieving bootstrap data")
 	bootstrapData, err := scope.GetBootstrapData()
-
-	commands := []string{
-		"ufw disable",
-	}
-	updatedBootstrapData := appendToUserDataCloudConfig(bootstrapData, commands)
-	encodedBootstrapData := base64.StdEncoding.EncodeToString([]byte(updatedBootstrapData))
-
 	if err != nil {
 		log.Error(err, "Error getting bootstrap data for machine")
 		return nil, errors.Wrap(err, "failed to retrieve bootstrap data")
 	}
 	s.scope.V(2).Info("Successfully retrieved bootstrap data")
+
+	// Stock images enable ufw (SSH only); Kubernetes and the load balancer health
+	// checks need the node reachable. Bootstrap data that is not cloud-config is
+	// left untouched.
+	updatedBootstrapData, err := PrependCloudConfigRunCmds(bootstrapData, []string{"ufw disable"})
+	if err != nil {
+		return nil, err
+	}
+	encodedBootstrapData := base64.StdEncoding.EncodeToString([]byte(updatedBootstrapData))
 
 	var sshKeyIDs []string //nolint:prealloc
 	for _, sshKeyID := range scope.VultrMachine.Spec.SSHKey {
@@ -182,17 +183,4 @@ func (s *Service) AddInstanceToVLB(vlbID, instanceID string) error {
 			return err
 		}
 	}
-}
-
-func appendToUserDataCloudConfig(userData string, commands []string) string {
-	runcmdIndex := strings.Index(userData, "runcmd:")
-	runcmdIndex += len("runcmd:")
-
-	// Append each command under runcmd: section
-	for _, cmd := range commands {
-		userData = userData[:runcmdIndex] + "\n  - " + cmd + userData[runcmdIndex:]
-		runcmdIndex += len("\n  - " + cmd)
-	}
-
-	return userData
 }
