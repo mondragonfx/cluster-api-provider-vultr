@@ -98,14 +98,13 @@ Setting up environment variables: Config example can be found in scripts/capvult
  export CLUSTER_NAME=<clustername>
  export KUBERNETES_VERSION=v1.32.4
  export CONTROL_PLANE_MACHINE_COUNT=1
- export CONTROL_PLANE_PLANID=<plan_id>
+ export CONTROL_PLANE_PLAN_ID=<plan_id>
  export WORKER_MACHINE_COUNT=1
- export WORKER_PLANID=<plan_id>
+ export WORKER_PLAN_ID=<plan_id>
  export MACHINE_IMAGE=<snapshot_id> # created in the step above.
  export REGION=<region>
- export PLANID=<plan_id>
- export VPCID=<vpc_id>
- export SSHKEY_ID=<sshKey_id>
+ export VPC_ID=<vpc_id>
+ export SSH_KEY_ID=<sshKey_id>
 ```
 
 ```

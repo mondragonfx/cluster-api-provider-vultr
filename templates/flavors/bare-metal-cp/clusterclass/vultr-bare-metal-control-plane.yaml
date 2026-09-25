@@ -1,0 +1,88 @@
+# Control plane on bare metal: same install script and kubelet arguments as the
+# bare metal worker template; preKubeadmCommands is set by the ClusterClass patch
+# with the control plane version. The kubeadm API call timeout covers the Vultr
+# load balancer warm-up (kubeadm default is 60s).
+apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+kind: KubeadmControlPlaneTemplate
+metadata:
+  name: vultr-bare-metal-control-plane
+spec:
+  template:
+    spec:
+      kubeadmConfigSpec:
+        files:
+        - path: /usr/local/bin/install-k8s.sh
+          owner: root:root
+          permissions: '0755'
+          content: |
+            #!/usr/bin/env bash
+            # Installs containerd and the Kubernetes packages for the requested version on
+            # a stock Ubuntu 24.04 image. Run by Cluster API before kubeadm join.
+            set -euo pipefail
+            VERSION="$${1#v}"
+            MINOR="$${VERSION%.*}"
+            export DEBIAN_FRONTEND=noninteractive
+            # Stock images ship with ufw enabled (SSH only); Kubernetes and the load balancer
+            # health checks need the node reachable.
+            ufw disable 2>/dev/null || true
+            # Stock images run unattended upgrades at boot; do not fight them for the apt lock.
+            systemctl stop --now apt-daily.timer apt-daily-upgrade.timer unattended-upgrades 2>/dev/null || true
+            apt_get() { local n; for n in 1 2 3 4 5; do apt-get -o DPkg::Lock::Timeout=600 "$@" && return 0; sleep 15; done; return 1; }
+            swapoff -a
+            sed -i "/\\sswap\\s/s/^/#/" /etc/fstab
+            printf "overlay\nbr_netfilter\n" > /etc/modules-load.d/k8s.conf
+            modprobe overlay
+            modprobe br_netfilter
+            cat > /etc/sysctl.d/99-kubernetes.conf <<SYSCTL
+            net.bridge.bridge-nf-call-iptables  = 1
+            net.bridge.bridge-nf-call-ip6tables = 1
+            net.ipv4.ip_forward                 = 1
+            SYSCTL
+            sysctl --system > /dev/null
+            apt_get update -q
+            apt_get install -y -q apt-transport-https ca-certificates curl gpg containerd
+            mkdir -p /etc/containerd
+            containerd config default > /etc/containerd/config.toml
+            sed -i "s/SystemdCgroup = false/SystemdCgroup = true/" /etc/containerd/config.toml
+            # containerd 1.x uses sandbox_image, 2.x uses sandbox (under pinned_images)
+            sed -i -E "s#^(\s*)sandbox_image = .*#\1sandbox_image = \"registry.k8s.io/pause:3.10\"#; s#^(\s*)sandbox = .*#\1sandbox = \"registry.k8s.io/pause:3.10\"#" /etc/containerd/config.toml
+            systemctl enable --now containerd
+            systemctl restart containerd
+            install -m 0755 -d /etc/apt/keyrings
+            curl -fsSL --retry 5 --retry-delay 10 "https://pkgs.k8s.io/core:/stable:/v$${MINOR}/deb/Release.key" | gpg --dearmor --yes -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+            echo "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v$${MINOR}/deb/ /" > /etc/apt/sources.list.d/kubernetes.list
+            apt_get update -q
+            apt_get install -y -q "kubelet=$${VERSION}-*" "kubeadm=$${VERSION}-*" "kubectl=$${VERSION}-*"
+            apt-mark hold kubelet kubeadm kubectl
+        initConfiguration:
+          timeouts:
+            kubernetesAPICallSeconds: 300
+          nodeRegistration:
+            criSocket: unix:///var/run/containerd/containerd.sock
+            kubeletExtraArgs:
+            - name: cgroup-driver
+              value: systemd
+            - name: eviction-hard
+              value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+            - name: cloud-provider
+              value: external
+            - name: node-labels
+              value: vultr.com/baremetal=true
+            - name: provider-id
+              value: vultr://{{ ds.meta_data['instance_id'] }}
+        joinConfiguration:
+          timeouts:
+            kubernetesAPICallSeconds: 300
+          nodeRegistration:
+            criSocket: unix:///var/run/containerd/containerd.sock
+            kubeletExtraArgs:
+            - name: cgroup-driver
+              value: systemd
+            - name: eviction-hard
+              value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
+            - name: cloud-provider
+              value: external
+            - name: node-labels
+              value: vultr.com/baremetal=true
+            - name: provider-id
+              value: vultr://{{ ds.meta_data['instance_id'] }}

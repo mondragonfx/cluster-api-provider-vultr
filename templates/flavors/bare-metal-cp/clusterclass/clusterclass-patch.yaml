@@ -1,0 +1,104 @@
+# Move the control plane of the bare-metal ClusterClass to bare metal.
+- op: replace
+  path: /metadata/name
+  value: vultr-bare-metal-cp
+- op: replace
+  path: /spec/controlPlane/templateRef/name
+  value: vultr-bare-metal-control-plane
+- op: replace
+  path: /spec/controlPlane/machineInfrastructure/templateRef
+  value:
+    apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+    kind: VultrBareMetalMachineTemplate
+    name: vultr-bare-metal-control-plane-machine
+# Slot 0 is the control plane (see base/clusterclass.yaml); replace it with the bare metal one.
+- op: replace
+  path: /spec/variables/0
+  value:
+    name: BARE_METAL_CONTROL_PLANE_PLAN_ID
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+- op: replace
+  path: /spec/patches/0
+  value:
+    name: BARE_METAL_CONTROL_PLANE
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec/region
+        valueFrom:
+          variable: REGION
+      - op: replace
+        path: /spec/template/spec/planID
+        valueFrom:
+          variable: BARE_METAL_CONTROL_PLANE_PLAN_ID
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_CONTROL_PLANE_OS_ID
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec/osID
+        valueFrom:
+          variable: BARE_METAL_OS_ID
+# Optional settings, each gated on its variable.
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_CONTROL_PLANE_VPC
+    enabledIf: '{{ if .VPC_ID }}true{{ end }}'
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/vpcID
+        valueFrom:
+          variable: VPC_ID
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_CONTROL_PLANE_SSH_KEY_ID
+    enabledIf: '{{ if ne .SSH_KEY_ID "" }}true{{ end }}'
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/sshKey/-
+        valueFrom:
+          variable: SSH_KEY_ID
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_CONTROL_PLANE_PRE_KUBEADM
+    definitions:
+    - selector:
+        apiVersion: controlplane.cluster.x-k8s.io/v1beta2
+        kind: KubeadmControlPlaneTemplate
+        matchResources:
+          controlPlane: true
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/kubeadmConfigSpec/preKubeadmCommands
+        valueFrom:
+          template: '["/usr/local/bin/install-k8s.sh {{ .builtin.controlPlane.version }}"]'

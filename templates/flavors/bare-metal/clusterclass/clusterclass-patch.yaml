@@ -1,0 +1,142 @@
+# Turns the shared ClusterClass into "vultr-bare-metal": adds a bare metal
+# worker class, its variables and the patches that wire them up.
+- op: replace
+  path: /metadata/name
+  value: vultr-bare-metal
+- op: add
+  path: /spec/workers/machineDeployments/-
+  value:
+    class: bare-metal-worker
+    bootstrap:
+      templateRef:
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+        kind: KubeadmConfigTemplate
+        name: vultr-bare-metal-worker
+    infrastructure:
+      templateRef:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        name: vultr-bare-metal-worker-machine
+- op: add
+  path: /spec/variables/-
+  value:
+    name: BARE_METAL_PLAN_ID
+    required: true
+    schema:
+      openAPIV3Schema:
+        type: string
+- op: add
+  path: /spec/variables/-
+  value:
+    name: BARE_METAL_OS_ID
+    required: false
+    schema:
+      openAPIV3Schema:
+        type: integer
+        default: 2284
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_REGION
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - bare-metal-worker
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec/region
+        valueFrom:
+          variable: REGION
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_PLAN_ID
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - bare-metal-worker
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec/planID
+        valueFrom:
+          variable: BARE_METAL_PLAN_ID
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_OS_ID
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - bare-metal-worker
+      jsonPatches:
+      - op: replace
+        path: /spec/template/spec/osID
+        valueFrom:
+          variable: BARE_METAL_OS_ID
+- op: add
+  path: /spec/patches/-
+  value:
+    # The same VPC_ID as the control plane and cloud workers: all nodes must share
+    # the VPC or none of them, otherwise pod networking between them breaks.
+    name: BARE_METAL_VPC
+    enabledIf: '{{ if .VPC_ID }}true{{ end }}'
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - bare-metal-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/vpcID
+        valueFrom:
+          variable: VPC_ID
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_SSH_KEY_ID
+    enabledIf: '{{ if ne .SSH_KEY_ID "" }}true{{ end }}'
+    definitions:
+    - selector:
+        apiVersion: infrastructure.cluster.x-k8s.io/v1beta2
+        kind: VultrBareMetalMachineTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - bare-metal-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/sshKey/-
+        valueFrom:
+          variable: SSH_KEY_ID
+- op: add
+  path: /spec/patches/-
+  value:
+    name: BARE_METAL_PRE_KUBEADM
+    definitions:
+    - selector:
+        apiVersion: bootstrap.cluster.x-k8s.io/v1beta2
+        kind: KubeadmConfigTemplate
+        matchResources:
+          machineDeploymentClass:
+            names:
+            - bare-metal-worker
+      jsonPatches:
+      - op: add
+        path: /spec/template/spec/preKubeadmCommands
+        valueFrom:
+          template: '["/usr/local/bin/install-k8s.sh {{ .builtin.machineDeployment.version }}"]'
