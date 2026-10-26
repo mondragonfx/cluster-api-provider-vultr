@@ -231,7 +231,7 @@ func (r *VultrBareMetalMachineReconciler) reconcileNormal(ctx context.Context, m
 		})
 	}
 
-	if machineScope.IsControlPlane() {
+	if machineScope.IsControlPlane() && clusterScope.IsLoadBalancerEnabled() {
 		lbID := clusterScope.APIServerLoadBalancerID()
 		if lbID == "" {
 			machineScope.Info("Waiting for the load balancer id to be known")
@@ -321,7 +321,7 @@ func (r *VultrBareMetalMachineReconciler) reconcileDelete(ctx context.Context, m
 	id := machineScope.GetServerID()
 	deleted := false
 	if id != "" {
-		if machineScope.IsControlPlane() {
+		if machineScope.IsControlPlane() && clusterScope.IsLoadBalancerEnabled() {
 			if err := svc.RemoveLoadBalancerMember(clusterScope.APIServerLoadBalancerID(), id); err != nil {
 				return reconcile.Result{}, err
 			}

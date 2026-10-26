@@ -217,7 +217,7 @@ func (r *VultrMachineReconciler) reconcileNormal(ctx context.Context, machineSco
 
 	// Control-plane instances join the API server load balancer; requeue
 	// until it accepts the member.
-	if util.IsControlPlaneMachine(machineScope.Machine) {
+	if util.IsControlPlaneMachine(machineScope.Machine) && clusterScope.IsLoadBalancerEnabled() {
 		lbID := clusterScope.APIServerLoadbalancersRef().ResourceID
 		if lbID == "" {
 			machineScope.Info("Waiting for the load balancer to be created")

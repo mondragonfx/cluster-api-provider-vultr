@@ -472,6 +472,7 @@ func TestReconcileNormal(t *testing.T) {
 		wantProvider string
 		wantCreates  int
 		lb           *fakeLB
+		lbDisabled   bool
 		wantMember   bool
 	}{
 		{
@@ -562,6 +563,17 @@ func TestReconcileNormal(t *testing.T) {
 			wantMember:   true,
 		},
 		{
+			name:         "control plane, load balancer disabled: no load balancer step, ready",
+			fake:         &fakeInstances{instances: map[string]*govultr.Instance{orphanExistingID: active}},
+			lb:           &fakeLB{},
+			lbDisabled:   true,
+			providerID:   orphanExistingID,
+			clusterReady: true,
+			wantReason:   infrav1.InstanceActiveReason,
+			wantStatus:   metav1.ConditionTrue,
+			wantProvider: "vultr://" + orphanExistingID,
+		},
+		{
 			name:         "providerID set and gone: re-check later, no create, ID kept",
 			fake:         &fakeInstances{},
 			providerID:   orphanExistingID,
@@ -581,6 +593,9 @@ func TestReconcileNormal(t *testing.T) {
 			if tt.noBootstrap {
 				fx.machineScope.Machine.Spec.Bootstrap.DataSecretName = nil
 			}
+			if tt.lbDisabled {
+				fx.clusterScope.VultrCluster.Spec.Network.APIServerLoadbalancers.Enabled = ptr.To(false)
+			}
 			if tt.terminal {
 				fx.machineScope.SetTerminalFailure(infrav1.InstanceUnexpectedStatusReason, "status \"locked\" is unexpected")
 			}
@@ -597,6 +612,9 @@ func TestReconcileNormal(t *testing.T) {
 			}
 			if len(tt.fake.created) != tt.wantCreates {
 				t.Errorf("creates = %d, want %d", len(tt.fake.created), tt.wantCreates)
+			}
+			if tt.lbDisabled && tt.lb.updates != 0 {
+				t.Errorf("load balancer updates = %d, want 0", tt.lb.updates)
 			}
 			if tt.lb != nil && tt.lb.lb != nil {
 				isMember := false
