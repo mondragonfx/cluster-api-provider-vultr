@@ -3,6 +3,8 @@ apiVersion: cluster.x-k8s.io/v1beta2
 kind: Cluster
 metadata:
   name: "${CLUSTER_NAME}"
+  labels:
+    ccm: "${CLUSTER_NAME}-vultr"
 spec:
   clusterNetwork:
     pods:
@@ -44,6 +46,15 @@ spec:
     kubeProxy: {}
   kubelet:
     cgroupfs: systemd
+    # Kamaji generates the kubelet config with current Kubernetes defaults;
+    # drop the settings older kubelets (the v1.34 image) refuse to start with.
+    configurationJSONPatches:
+      - op: remove
+        path: /crashLoopBackOff
+      - op: remove
+        path: /imagePullCredentialsVerificationPolicy
+      - op: remove
+        path: /memoryReservationPolicy
     # Worker hostnames do not resolve from the management cluster, so prefer the
     # addresses the provider reports.
     preferredAddressTypes:
@@ -111,3 +122,219 @@ spec:
               value: nodefs.available<0%,nodefs.inodesFree<0%,imagefs.available<0%
             - name: provider-id
               value: "vultr://{{ ds.meta_data['instance_id'] }}"
+---
+# Vultr CCM for Kamaji clusters. There are no control plane nodes, so it runs
+# as a Deployment on the workers instead of the control-plane DaemonSet.
+apiVersion: addons.cluster.x-k8s.io/v1beta2
+kind: ClusterResourceSet
+metadata:
+  name: ${CLUSTER_NAME}-ccm-manifests
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+spec:
+  clusterSelector:
+    matchLabels:
+      ccm: ${CLUSTER_NAME}-vultr
+  resources:
+  - kind: ConfigMap
+    name: vultr-${CLUSTER_NAME}-ccm-manifests
+  strategy: Reconcile
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: vultr-${CLUSTER_NAME}-ccm-manifests
+data:
+  manifests: |
+    apiVersion: v1
+    kind: ServiceAccount
+    metadata:
+      name: vultr-ccm
+      namespace: kube-system
+    ---
+    apiVersion: rbac.authorization.k8s.io/v1
+    kind: ClusterRole
+    metadata:
+      annotations:
+        rbac.authorization.kubernetes.io/autoupdate: 'true'
+      name: system:vultr-ccm
+    rules:
+    - apiGroups:
+      - ''
+      resources:
+      - events
+      verbs:
+      - create
+      - patch
+      - update
+    - apiGroups:
+      - ''
+      resources:
+      - nodes
+      verbs:
+      - '*'
+    - apiGroups:
+      - ''
+      resources:
+      - nodes/status
+      verbs:
+      - patch
+    - apiGroups:
+      - ''
+      resources:
+      - services
+      verbs:
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - ''
+      resources:
+      - services/status
+      verbs:
+      - list
+      - patch
+      - update
+      - watch
+    - apiGroups:
+      - ''
+      resources:
+      - serviceaccounts
+      verbs:
+      - create
+      - get
+    - apiGroups:
+      - ''
+      resources:
+      - persistentvolumes
+      verbs:
+      - get
+      - list
+      - update
+      - watch
+    - apiGroups:
+      - ''
+      resources:
+      - endpoints
+      verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+    - apiGroups:
+      - coordination.k8s.io
+      resources:
+      - leases
+      verbs:
+      - create
+      - get
+      - list
+      - watch
+      - update
+    - apiGroups:
+      - ''
+      resources:
+      - secrets
+      verbs:
+      - get
+      - list
+      - watch
+    ---
+    kind: ClusterRoleBinding
+    apiVersion: rbac.authorization.k8s.io/v1
+    metadata:
+      name: system:vultr-ccm
+    roleRef:
+      apiGroup: rbac.authorization.k8s.io
+      kind: ClusterRole
+      name: system:vultr-ccm
+    subjects:
+    - kind: ServiceAccount
+      name: vultr-ccm
+      namespace: kube-system
+    ---
+    apiVersion: apps/v1
+    kind: Deployment
+    metadata:
+      name: vultr-ccm
+      labels:
+        app: vultr-ccm
+      namespace: kube-system
+    spec:
+      replicas: 2
+      selector:
+        matchLabels:
+          app: vultr-ccm
+      template:
+        metadata:
+          labels:
+            app: vultr-ccm
+        spec:
+          serviceAccountName: vultr-ccm
+          tolerations:
+          - key: CriticalAddonsOnly
+            operator: Exists
+          - operator: Exists
+            effect: NoExecute
+          - operator: Exists
+            effect: NoSchedule
+          hostNetwork: true
+          containers:
+          - image: vultr/vultr-cloud-controller-manager:v0.18.4
+            imagePullPolicy: Always
+            name: vultr-cloud-controller-manager
+            command:
+            - /vultr-cloud-controller-manager
+            - --cloud-provider=vultr
+            - --allow-untagged-cloud=true
+            - --authentication-skip-lookup=true
+            - --v=3
+            env:
+            - name: VULTR_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: vultr-${CLUSTER_NAME}-ccm-secret
+                  key: api-key
+          affinity:
+            podAntiAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      app: vultr-ccm
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: vultr-${CLUSTER_NAME}-ccm-secret
+  namespace: default
+type: addons.cluster.x-k8s.io/resource-set
+stringData:
+  vultr-ccm.yaml: |
+    apiVersion: v1
+    kind: Secret
+    metadata:
+      name: vultr-${CLUSTER_NAME}-ccm-secret
+      namespace: kube-system
+    type: Opaque
+    stringData:
+      api-key: ${VULTR_API_KEY}
+---
+apiVersion: addons.cluster.x-k8s.io/v1beta2
+kind: ClusterResourceSet
+metadata:
+  name: ${CLUSTER_NAME}-ccm-secret
+  labels:
+    cluster.x-k8s.io/cluster-name: ${CLUSTER_NAME}
+spec:
+  clusterSelector:
+    matchLabels:
+      ccm: ${CLUSTER_NAME}-vultr
+  resources:
+  - kind: Secret
+    name: vultr-${CLUSTER_NAME}-ccm-secret
+  strategy: Reconcile
