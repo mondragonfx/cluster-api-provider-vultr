@@ -5,6 +5,8 @@ metadata:
 spec:
   template:
     spec:
+      preKubeadmCommands:
+        - ufw disable 2>/dev/null || true
       joinConfiguration:
         nodeRegistration:
           criSocket: unix:///var/run/containerd/containerd.sock

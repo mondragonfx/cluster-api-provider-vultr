@@ -124,10 +124,10 @@ func (s *Service) CreateInstance(scope *scope.MachineScope) (*govultr.Instance, 
 	}
 	s.scope.V(2).Info("Successfully retrieved bootstrap data")
 
-	commands := []string{
-		"ufw disable",
+	updatedBootstrapData, err := PrependCloudConfigRunCmds(bootstrapData, []string{"ufw disable"})
+	if err != nil {
+		return nil, err
 	}
-	updatedBootstrapData := appendToUserDataCloudConfig(bootstrapData, commands)
 	encodedBootstrapData := base64.StdEncoding.EncodeToString([]byte(updatedBootstrapData))
 
 	var sshKeyIDs []string //nolint:prealloc
@@ -219,17 +219,4 @@ func (s *Service) GetInstanceAddress(instance *govultr.Instance) ([]corev1.NodeA
 	}
 
 	return addresses, nil
-}
-
-func appendToUserDataCloudConfig(userData string, commands []string) string {
-	runcmdIndex := strings.Index(userData, "runcmd:")
-	runcmdIndex += len("runcmd:")
-
-	// Append each command under runcmd: section
-	for _, cmd := range commands {
-		userData = userData[:runcmdIndex] + "\n  - " + cmd + userData[runcmdIndex:]
-		runcmdIndex += len("\n  - " + cmd)
-	}
-
-	return userData
 }

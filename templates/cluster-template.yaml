@@ -41,6 +41,8 @@ spec:
         kind: VultrMachineTemplate
         name: "${CLUSTER_NAME}-control-plane"
   kubeadmConfigSpec:
+    preKubeadmCommands:
+      - ufw disable 2>/dev/null || true
     initConfiguration:
       # wait for the Vultr load balancer to start forwarding (kubeadm default is 60s)
       timeouts:
@@ -129,6 +131,8 @@ metadata:
 spec:
   template:
     spec:
+      preKubeadmCommands:
+        - ufw disable 2>/dev/null || true
       joinConfiguration:
         nodeRegistration:
           criSocket: unix:///var/run/containerd/containerd.sock

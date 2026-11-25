@@ -93,6 +93,16 @@ func TestPrependCloudConfigRunCmds(t *testing.T) {
 			},
 		},
 		{
+			name:     "machine config without runcmd passes through unchanged",
+			userData: "version: v1alpha1\nmachine:\n  type: worker\n  token: abc\n",
+			cmds:     []string{testCmd},
+			check: func(t *testing.T, out string) {
+				if out != "version: v1alpha1\nmachine:\n  type: worker\n  token: abc\n" {
+					t.Errorf("machine config was modified: %q", out)
+				}
+			},
+		},
+		{
 			name:     "no commands is a no-op",
 			userData: "#cloud-config\nruncmd:\n  - a\n",
 			cmds:     nil,

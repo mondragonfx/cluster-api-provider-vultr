@@ -6,6 +6,8 @@ spec:
   template:
     spec:
       kubeadmConfigSpec:
+        preKubeadmCommands:
+        - ufw disable 2>/dev/null || true
         initConfiguration:
           # wait for the Vultr load balancer to start forwarding (kubeadm default is 60s)
           timeouts:
